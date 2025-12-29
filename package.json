@@ -1,5 +1,5 @@
 {
-  "name": "rhythm-blast-online",
+  "name": "penguin-snow-dash",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,7 +13,8 @@
     "react-dom": "^19.2.3",
     "lucide-react": "^0.562.0",
     "canvas-confetti": "^1.9.4",
-    "firebase": "^12.7.0"
+    "firebase": "^12.7.0",
+    "@google/genai": "^1.34.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

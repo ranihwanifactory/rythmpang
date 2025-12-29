@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from 'firebase/auth';
-import { ref, onValue, update, remove } from 'firebase/database';
+import { ref, onValue, update } from 'firebase/database';
 import { database } from '../firebase';
-import { RoomData, GameNote, PlayerState } from '../types';
-import { Music, Zap, Flame, Trophy } from 'lucide-react';
+import { RoomData, Obstacle, PlayerState } from '../types';
+import { Flag, Shield, FastForward, Timer, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface GameViewProps {
@@ -15,35 +15,37 @@ interface GameViewProps {
 
 const GameView: React.FC<GameViewProps> = ({ user, roomId, onEndGame }) => {
   const [room, setRoom] = useState<RoomData | null>(null);
-  const [activeNotes, setActiveNotes] = useState<GameNote[]>([]);
-  const [score, setScore] = useState(0);
-  const [combo, setCombo] = useState(0);
-  const [maxCombo, setMaxCombo] = useState(0);
-  const [feedback, setFeedback] = useState<{ text: string; color: string } | null>(null);
+  const [distance, setDistance] = useState(0);
+  const [lane, setLane] = useState(1);
+  const [speed, setSpeed] = useState(0);
+  const [isJumping, setIsJumping] = useState(false);
+  const [isStunned, setIsStunned] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isFinished, setIsFinished] = useState(false);
-  
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
   const requestRef = useRef<number>();
-  const laneKeys = ['d', 'f', 'j', 'k'];
-  const noteSpeed = 0.5; // pixel per ms
-  const laneHeight = 600;
+  const lastUpdateRef = useRef<number>(0);
+  
+  const MAX_SPEED = 15;
+  const ACCELERATION = 0.05;
+  const FRICTION = 0.02;
 
   useEffect(() => {
     const roomRef = ref(database, `rooms/${roomId}`);
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
-      if (!data) {
-        onEndGame();
-        return;
-      }
+      if (!data) return;
       setRoom(data);
+      
+      const me = data.players?.[user.uid];
+      if (me?.status === 'finished' && !isFinished) {
+        setIsFinished(true);
+      }
     });
 
-    // Start delay
     const timer = setTimeout(() => {
       setStartTime(Date.now());
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }, 3000);
 
     return () => {
@@ -53,270 +55,274 @@ const GameView: React.FC<GameViewProps> = ({ user, roomId, onEndGame }) => {
     };
   }, [roomId]);
 
-  // Main game loop
+  // Physics Loop
   useEffect(() => {
-    if (!startTime || !room?.config || isFinished) return;
+    if (!startTime || !room?.config || isFinished || isStunned) return;
 
     const loop = () => {
-      const elapsed = Date.now() - startTime;
-      const config = room.config!;
+      const now = Date.now();
       
-      // Calculate notes to display
-      // A note should appear on screen if its (timestamp - travel_time) <= elapsed
-      const travelTime = laneHeight / noteSpeed;
-      
-      const onScreen = config.pattern.filter(note => {
-        const appearAt = note.timestamp - travelTime;
-        const leaveAt = note.timestamp + 100; // Extra buffer
-        return elapsed >= appearAt && elapsed <= leaveAt;
+      setSpeed(prev => {
+        let next = prev + ACCELERATION;
+        if (next > MAX_SPEED) next = MAX_SPEED;
+        return next;
       });
 
-      setActiveNotes(onScreen);
+      setDistance(prev => {
+        const next = prev + speed;
+        if (next >= room.config!.totalDistance) {
+          handleFinish();
+          return room.config!.totalDistance;
+        }
+        return next;
+      });
 
-      // End condition
-      const lastNote = config.pattern[config.pattern.length - 1];
-      if (elapsed > lastNote.timestamp + 2000) {
-        handleGameEnd();
-      } else {
-        requestRef.current = requestAnimationFrame(loop);
+      // Periodic DB sync
+      if (now - lastUpdateRef.current > 100) {
+        updatePlayerInDB();
+        lastUpdateRef.current = now;
       }
+
+      // Obstacle Collision Check
+      checkCollisions();
+
+      requestRef.current = requestAnimationFrame(loop);
     };
 
     requestRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef.current!);
-  }, [startTime, room?.config, isFinished]);
+  }, [startTime, room?.config, isFinished, isStunned, speed, distance, lane, isJumping]);
 
-  const handleGameEnd = async () => {
-    setIsFinished(true);
-    confetti({
-      particleCount: 150,
-      spread: 70,
-      origin: { y: 0.6 }
+  const updatePlayerInDB = () => {
+    const playerRef = ref(database, `rooms/${roomId}/players/${user.uid}`);
+    update(playerRef, {
+      distance: Math.floor(distance),
+      lane: lane,
+      speed: Math.floor(speed)
     });
-
-    const playerRef = ref(database, `rooms/${roomId}/players/${user.uid}`);
-    await update(playerRef, { status: 'finished' });
-
-    // Sync score one last time
-    await update(playerRef, { score });
   };
 
-  const handleHit = (lane: number) => {
-    if (!startTime || isFinished) return;
-    const elapsed = Date.now() - startTime;
-    
-    // Find closest note in this lane
-    const targetNote = activeNotes.find(n => n.lane === lane && Math.abs(elapsed - n.timestamp) < 150);
+  const handleFinish = async () => {
+    setIsFinished(true);
+    const playerRef = ref(database, `rooms/${roomId}/players/${user.uid}`);
+    await update(playerRef, { 
+      status: 'finished',
+      distance: room!.config!.totalDistance,
+      finishTime: Date.now() - (startTime || 0)
+    });
+    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+  };
 
-    if (targetNote) {
-      const diff = Math.abs(elapsed - targetNote.timestamp);
-      let hitScore = 0;
-      let hitText = "";
-      let hitColor = "";
+  const checkCollisions = () => {
+    if (isJumping || !room?.config) return;
 
-      if (diff < 40) {
-        hitScore = 100;
-        hitText = "PERFECT";
-        hitColor = "text-yellow-400";
-      } else if (diff < 80) {
-        hitScore = 70;
-        hitText = "GREAT";
-        hitColor = "text-cyan-400";
+    const myDist = distance;
+    const hitObstacle = room.config.obstacles.find(obs => 
+      obs.lane === lane && 
+      Math.abs(obs.distance - myDist) < 40
+    );
+
+    if (hitObstacle) {
+      if (hitObstacle.type === 'hole') {
+        stunPlayer("FELL IN HOLE!", 1500);
+      } else if (hitObstacle.type === 'seal') {
+        stunPlayer("HIT A SEAL!", 1000);
       } else {
-        hitScore = 40;
-        hitText = "GOOD";
-        hitColor = "text-emerald-400";
+        setSpeed(s => s * 0.5);
+        setFeedback("SNOWBALL SLOW!");
+        setTimeout(() => setFeedback(null), 1000);
       }
-
-      setScore(prev => prev + hitScore);
-      setCombo(prev => prev + 1);
-      setMaxCombo(prev => Math.max(prev, combo + 1));
-      setFeedback({ text: hitText, color: hitColor });
-
-      // Visual feedback: remove note from display (local only for efficiency)
-      setActiveNotes(prev => prev.filter(n => n.id !== targetNote.id));
-
-      // Play sound
-      playHitSound(lane);
-    } else {
-      // Miss
-      setCombo(0);
-      setFeedback({ text: "MISS", color: "text-red-500" });
     }
-
-    // Debounced score update to DB
-    updatePlayerScore(score);
   };
 
-  const updatePlayerScore = (s: number) => {
-    const playerRef = ref(database, `rooms/${roomId}/players/${user.uid}`);
-    update(playerRef, { score: s });
+  const stunPlayer = (msg: string, duration: number) => {
+    setIsStunned(true);
+    setSpeed(0);
+    setFeedback(msg);
+    setTimeout(() => {
+      setIsStunned(false);
+      setFeedback(null);
+    }, duration);
   };
 
-  const playHitSound = (lane: number) => {
-    if (!audioContextRef.current) return;
-    const osc = audioContextRef.current.createOscillator();
-    const gain = audioContextRef.current.createGain();
-    osc.connect(gain);
-    gain.connect(audioContextRef.current.destination);
-    
-    const freqs = [261.63, 329.63, 392.00, 523.25];
-    osc.frequency.setValueAtTime(freqs[lane], audioContextRef.current.currentTime);
-    osc.type = 'sine';
-    
-    gain.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + 0.1);
-    
-    osc.start();
-    osc.stop(audioContextRef.current.currentTime + 0.1);
+  const handleJump = () => {
+    if (isJumping || isStunned || isFinished) return;
+    setIsJumping(true);
+    setTimeout(() => setIsJumping(false), 600);
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const idx = laneKeys.indexOf(e.key.toLowerCase());
-      if (idx !== -1) handleHit(idx);
+      if (isStunned || isFinished) return;
+      if (e.key === 'ArrowLeft') setLane(l => Math.max(0, l - 1));
+      if (e.key === 'ArrowRight') setLane(l => Math.min(2, l + 1));
+      if (e.key === ' ' || e.key === 'ArrowUp') handleJump();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeNotes, startTime, isFinished, combo]);
+  }, [isStunned, isFinished, isJumping]);
 
-  // Fix: Explicitly cast result of Object.values to PlayerState[] for proper property access (score, uid, status, name)
-  const players = room ? (Object.values(room.players) as PlayerState[]).sort((a, b) => b.score - a.score) : [];
+  if (!room) return null;
+
+  // FIX: Explicitly cast the result of Object.values to PlayerState[] to prevent "unknown" type errors.
+  // This ensures that the map and filter operations below recognize the properties like distance, uid, and name.
+  const players = (Object.values(room.players) as PlayerState[]).sort((a, b) => (b.distance || 0) - (a.distance || 0));
+  const totalDist = room.config?.totalDistance || 5000;
 
   return (
-    <div className="relative h-screen bg-[#0f0f1a] overflow-hidden flex flex-col md:flex-row">
+    <div className="relative h-screen bg-gradient-to-b from-blue-300 to-white overflow-hidden flex flex-col">
       
-      {/* HUD - Players & Rankings */}
-      <div className="w-full md:w-64 bg-glass border-r border-white/5 p-6 flex flex-col gap-6 z-20 order-2 md:order-1">
-        <h3 className="font-game text-xl text-pink-400 flex items-center gap-2">
-          <Trophy size={20} /> RANKING
-        </h3>
-        <div className="space-y-4 flex-1">
-          {players.map((p, idx) => (
+      {/* Race Progress Bar */}
+      <div className="bg-white/30 backdrop-blur-md p-4 flex items-center justify-center gap-4 border-b border-white/20 z-20">
+        <div className="flex-1 max-w-2xl h-6 bg-blue-900/20 rounded-full relative overflow-hidden">
+          {players.map(p => (
             <div 
-              key={p.uid} 
-              className={`p-4 rounded-2xl transition-all border ${p.uid === user.uid ? 'bg-pink-500/20 border-pink-500/50 scale-105' : 'bg-white/5 border-white/10'}`}
+              key={p.uid}
+              className={`absolute top-0 h-full w-8 flex items-center justify-center transition-all duration-300 ${p.uid === user.uid ? 'z-10' : 'z-0 opacity-60'}`}
+              style={{ left: `${((p.distance || 0) / totalDist) * 100}%`, marginLeft: '-16px' }}
             >
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-bold text-gray-400">#{idx + 1}</span>
-                <span className="text-[10px] bg-white/10 px-2 rounded-full text-white">{p.status.toUpperCase()}</span>
-              </div>
-              <div className="font-game text-sm truncate">{p.name}</div>
-              <div className="text-xl font-game text-white">{p.score.toLocaleString()}</div>
+              <div className={`text-2xl ${p.uid === user.uid ? 'scale-125' : 'scale-100'}`}>🐧</div>
+              {p.uid === user.uid && <div className="absolute -top-6 text-[10px] font-bold text-blue-800 bg-white px-1 rounded">YOU</div>}
             </div>
           ))}
-        </div>
-        
-        <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-          <div className="flex items-center gap-2 text-yellow-500 mb-2">
-            <Zap size={16} fill="currentColor" />
-            <span className="text-xs font-bold uppercase">Game Info</span>
-          </div>
-          <p className="text-sm font-bold truncate">{room?.config?.songTitle || "Loading..."}</p>
-          <p className="text-xs text-gray-500">BPM: {room?.config?.bpm}</p>
+          <div className="absolute right-0 top-0 h-full w-2 bg-red-500 flex items-center justify-center">🏁</div>
         </div>
       </div>
 
-      {/* Main Stage */}
-      <div className="flex-1 relative flex items-center justify-center order-1 md:order-2">
+      {/* Game Stage (Pseudo-3D Track) */}
+      <div className="flex-1 relative flex items-center justify-center perspective-[1000px]">
         
-        {/* Combo Overlay */}
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 text-center pointer-events-none z-10">
-          {combo > 0 && (
-            <div className="animate-bounce">
-              <div className="text-7xl font-game text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">{combo}</div>
-              <div className="text-2xl font-game text-cyan-400 tracking-widest">COMBO</div>
-            </div>
-          )}
+        {/* Environment - Animated background patterns for movement feel */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div 
+            className="absolute inset-0 opacity-20"
+            style={{ 
+              backgroundImage: 'radial-gradient(circle, #3b82f6 1px, transparent 1px)', 
+              backgroundSize: '100px 100px',
+              transform: `translateY(${(distance % 1000)}px)` 
+            }}
+          ></div>
+        </div>
+
+        {/* Feedback Messages */}
+        <div className="absolute top-20 z-50 pointer-events-none">
           {feedback && (
-            <div className={`mt-4 text-4xl font-game ${feedback.color} animate-ping`}>
-              {feedback.text}
+            <div className="text-6xl font-game text-red-600 animate-bounce drop-shadow-lg">
+              {feedback}
             </div>
           )}
         </div>
 
-        {/* Lanes */}
-        <div className="flex gap-4 h-[600px] items-end pb-12">
-          {[0, 1, 2, 3].map(lane => (
-            <div key={lane} className="relative w-20 h-full">
-              {/* Lane Background */}
-              <div className="absolute inset-0 bg-white/5 rounded-2xl border-x border-white/10"></div>
-              
-              {/* Note Track */}
-              <div className="absolute inset-0 overflow-hidden">
-                {activeNotes.filter(n => n.lane === lane).map(note => {
-                   const elapsed = startTime ? Date.now() - startTime : 0;
-                   const distance = (note.timestamp - elapsed) * noteSpeed;
-                   return (
-                     <div 
-                      key={note.id}
-                      className="absolute left-1/2 -translate-x-1/2 w-16 h-8 bg-gradient-to-r from-pink-400 to-rose-600 rounded-full shadow-[0_0_15px_rgba(244,63,94,0.6)]"
-                      style={{ bottom: `${distance + 40}px` }}
-                     ></div>
-                   );
-                })}
-              </div>
+        {/* The Track */}
+        <div className="relative w-[600px] h-[800px] bg-white/40 border-x-8 border-blue-100 shadow-2xl flex justify-around items-end overflow-hidden">
+          
+          {/* LANES */}
+          {[0, 1, 2].map(l => (
+            <div key={l} className="w-1/3 h-full border-x border-blue-200/30 relative">
+              {/* Render Obstacles in this lane */}
+              {room.config?.obstacles.filter(obs => obs.lane === l).map(obs => {
+                const distToMe = obs.distance - distance;
+                if (distToMe > -100 && distToMe < 1000) {
+                  return (
+                    <div 
+                      key={obs.id}
+                      className="absolute left-1/2 -translate-x-1/2 transition-all duration-16"
+                      style={{ bottom: `${distToMe * 0.8}px` }}
+                    >
+                      {obs.type === 'hole' && <div className="w-24 h-12 bg-gray-900/80 rounded-[100%] border-4 border-blue-400"></div>}
+                      {obs.type === 'seal' && <div className="text-4xl">🦭</div>}
+                      {obs.type === 'snowball' && <div className="w-16 h-16 bg-white rounded-full shadow-lg border border-blue-100"></div>}
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          ))}
 
-              {/* Hit Zone */}
+          {/* MY CHARACTER */}
+          <div 
+            className={`absolute transition-all duration-150 z-20 ${isJumping ? 'scale-150 -translate-y-48' : 'scale-100'}`}
+            style={{ 
+              left: `${(lane * 33.33) + 16.66}%`, 
+              bottom: '40px',
+              transform: `translateX(-50%) ${isJumping ? 'translateY(-100px)' : ''}`
+            }}
+          >
+            <div className={`text-7xl ${isStunned ? 'rotate-90 grayscale' : 'animate-bounce'}`}>🐧</div>
+            <div className="w-16 h-4 bg-black/10 rounded-full blur-sm mx-auto"></div>
+          </div>
+
+          {/* OTHER PLAYERS (GHOSTS) */}
+          {players.filter(p => p.uid !== user.uid).map(p => {
+             const distToMe = (p.distance || 0) - distance;
+             if (distToMe > -100 && distToMe < 1000) {
+               return (
+                <div 
+                  key={p.uid}
+                  className="absolute opacity-40 grayscale z-10"
+                  style={{ 
+                    left: `${((p.lane || 1) * 33.33) + 16.66}%`, 
+                    bottom: `${40 + (distToMe * 0.8)}px`,
+                    transform: 'translateX(-50%) scale(0.8)'
+                  }}
+                >
+                  <div className="text-6xl">🐧</div>
+                  <div className="text-[10px] bg-black/20 text-white px-1 rounded whitespace-nowrap">{p.name}</div>
+                </div>
+               );
+             }
+             return null;
+          })}
+        </div>
+
+        {/* Start Countdown Overlay */}
+        {!startTime && (
+          <div className="absolute inset-0 bg-blue-900/60 backdrop-blur-md flex items-center justify-center z-50">
+            <div className="text-center">
+              <div className="text-9xl font-game text-white animate-ping">READY?</div>
+              <div className="text-2xl font-game text-cyan-300 mt-4 uppercase">Expedition starting soon!</div>
+            </div>
+          </div>
+        )}
+
+        {/* Finish Screen */}
+        {isFinished && (
+          <div className="absolute inset-0 bg-blue-950/90 flex items-center justify-center z-50">
+            <div className="bg-white p-12 rounded-[60px] text-center max-w-lg shadow-2xl">
+              <Flag size={64} className="mx-auto text-blue-600 mb-6" />
+              <h2 className="text-6xl font-game text-blue-900 mb-2">GOAL IN!</h2>
+              <div className="space-y-4 my-8">
+                {players.map((p, i) => (
+                  <div key={p.uid} className={`flex items-center justify-between p-4 rounded-2xl ${p.uid === user.uid ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-100'}`}>
+                    <span className="font-game text-xl">#{i+1} {p.name}</span>
+                    <span className="font-bold text-blue-600">{p.finishTime ? (p.finishTime/1000).toFixed(2) + 's' : 'Racing...'}</span>
+                  </div>
+                ))}
+              </div>
               <button 
-                onMouseDown={() => handleHit(lane)}
-                className="absolute bottom-0 w-full h-20 bg-glass border-4 border-white/20 rounded-2xl hover:bg-white/20 active:scale-90 transition-all flex items-center justify-center font-game text-2xl text-white/50"
+                onClick={onEndGame}
+                className="w-full py-6 bg-blue-600 text-white font-game text-2xl rounded-3xl hover:bg-blue-700 transition-all"
               >
-                {laneKeys[lane].toUpperCase()}
+                RETURN TO LOBBY
               </button>
             </div>
-          ))}
-        </div>
-
-        {!startTime && !isFinished && (
-           <div className="absolute inset-0 flex items-center justify-center bg-[#0f0f1a]/80 z-50 backdrop-blur-sm">
-             <div className="text-center">
-                <div className="text-8xl font-game text-white animate-pulse mb-4">GET READY!</div>
-                <div className="text-2xl font-game text-pink-400">Loading Stage...</div>
-             </div>
-           </div>
-        )}
-
-        {isFinished && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0f0f1a]/90 z-50 backdrop-blur-lg">
-             <div className="bg-glass p-12 rounded-[60px] border border-white/10 text-center max-w-lg w-full">
-                <Flame size={64} className="mx-auto text-orange-500 mb-6 animate-pulse" />
-                <h2 className="text-6xl font-game text-white mb-2">STAGE CLEAR!</h2>
-                <div className="text-2xl font-game text-pink-400 mb-8">Score: {score.toLocaleString()}</div>
-                
-                <div className="grid grid-cols-2 gap-4 mb-12">
-                  <div className="bg-white/5 p-4 rounded-3xl">
-                    <div className="text-xs text-gray-500 uppercase font-bold">Max Combo</div>
-                    <div className="text-3xl font-game text-cyan-400">{maxCombo}</div>
-                  </div>
-                  <div className="bg-white/5 p-4 rounded-3xl">
-                    <div className="text-xs text-gray-500 uppercase font-bold">Rank</div>
-                    <div className="text-3xl font-game text-yellow-400">{score > 4000 ? 'SSS' : score > 3000 ? 'S' : 'A'}</div>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={onEndGame}
-                  className="w-full py-6 bg-white text-black font-game text-2xl rounded-3xl hover:scale-105 active:scale-95 transition-all"
-                >
-                  BACK TO LOBBY
-                </button>
-             </div>
           </div>
         )}
       </div>
+
+      {/* Control Info */}
+      <div className="bg-white/10 p-4 flex justify-around text-blue-900/60 font-bold uppercase text-xs">
+        <div className="flex items-center gap-2"><FastForward size={16} /> Arrow Keys to Move</div>
+        <div className="flex items-center gap-2"><Shield size={16} /> Space to Jump</div>
+        <div className="flex items-center gap-2"><Timer size={16} /> Distance: {Math.floor(distance)}m / {totalDist}m</div>
+      </div>
       
-      {/* Mobile-only Lane Indicators */}
-      <div className="md:hidden grid grid-cols-4 gap-2 p-4 bg-glass border-t border-white/10 z-30">
-        {laneKeys.map((k, i) => (
-           <button 
-            key={k} 
-            onClick={() => handleHit(i)}
-            className="h-20 bg-pink-500 rounded-2xl flex items-center justify-center text-3xl font-game text-white shadow-lg active:scale-90 transition-all"
-           >
-             {k.toUpperCase()}
-           </button>
-        ))}
+      {/* Mobile Controls */}
+      <div className="md:hidden grid grid-cols-3 gap-2 p-4 bg-white/20 z-30">
+        <button onTouchStart={() => setLane(l => Math.max(0, l - 1))} className="h-20 bg-blue-500/50 rounded-2xl flex items-center justify-center text-4xl">⬅️</button>
+        <button onTouchStart={handleJump} className="h-20 bg-blue-600 rounded-2xl flex items-center justify-center text-4xl">JUMP</button>
+        <button onTouchStart={() => setLane(l => Math.min(2, l + 1))} className="h-20 bg-blue-500/50 rounded-2xl flex items-center justify-center text-4xl">➡️</button>
       </div>
     </div>
   );

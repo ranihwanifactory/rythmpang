@@ -3,28 +3,29 @@ export interface UserProfile {
   uid: string;
   displayName: string;
   photoURL: string | null;
-  score?: number;
 }
 
-export interface GameNote {
+export interface Obstacle {
   id: string;
-  lane: number;
-  timestamp: number;
+  type: 'hole' | 'seal' | 'snowball';
+  distance: number; // Distance from start (meters)
+  lane: number; // 0, 1, 2
 }
 
 export interface GameConfig {
-  bpm: number;
-  songTitle: string;
+  totalDistance: number;
+  obstacles: Obstacle[];
   difficulty: 'easy' | 'medium' | 'hard';
-  pattern: GameNote[];
 }
 
 export interface PlayerState {
   uid: string;
   name: string;
-  score: number;
-  combo: number;
+  distance: number; // Current distance covered
+  lane: number; // Current lane (0, 1, 2)
+  speed: number;
   status: 'waiting' | 'ready' | 'playing' | 'finished';
+  finishTime?: number;
 }
 
 export interface RoomData {
