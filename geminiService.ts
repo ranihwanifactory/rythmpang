@@ -1,55 +1,60 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
 import { GameConfig, GameNote } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const SONG_TITLES = [
+  "Neon Starlight",
+  "Cyber Jump",
+  "Pixel Party",
+  "Galaxy Bounce",
+  "Synthwave Dreams",
+  "Electric Pulse",
+  "Retro Runner",
+  "Digital Disco"
+];
 
 export const generateRhythmPattern = async (difficulty: 'easy' | 'medium' | 'hard'): Promise<GameConfig> => {
-  const difficultyPrompt = {
-    easy: "Simple patterns, 60-80 BPM, mostly on-beat notes.",
-    medium: "Syncopated patterns, 100-120 BPM, occasional off-beats.",
-    hard: "Fast-paced, 140-160 BPM, dense patterns and triplets."
+  // Simulate a short loading delay for "generation" feel
+  await new Promise(resolve => setTimeout(resolve, 800));
+
+  const songTitle = SONG_TITLES[Math.floor(Math.random() * SONG_TITLES.length)];
+  
+  const settings = {
+    easy: { bpm: 80, interval: 600, noteCount: 40, multiChance: 0 },
+    medium: { bpm: 120, interval: 400, noteCount: 60, multiChance: 0.15 },
+    hard: { bpm: 160, interval: 250, noteCount: 100, multiChance: 0.3 }
   }[difficulty];
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Generate a fun rhythm game pattern JSON for a child. Difficulty: ${difficultyPrompt}. Output exactly 50 notes. Each note has a 'lane' (0, 1, 2, or 3) and a 'timestamp' (ms from start, increasing order).`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          bpm: { type: Type.NUMBER },
-          songTitle: { type: Type.STRING },
-          pattern: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                lane: { type: Type.NUMBER },
-                timestamp: { type: Type.NUMBER }
-              },
-              required: ["lane", "timestamp"]
-            }
-          }
-        },
-        required: ["bpm", "songTitle", "pattern"]
-      }
-    }
-  });
+  const pattern: GameNote[] = [];
+  let currentTimestamp = 1500; // Start delay
 
-  const raw = JSON.parse(response.text || "{}");
-  
-  // Ensure IDs exist
-  const pattern = (raw.pattern || []).map((n: any, idx: number) => ({
-    ...n,
-    id: `note-${idx}-${Date.now()}`
-  })) as GameNote[];
+  for (let i = 0; i < settings.noteCount; i++) {
+    // Generate primary note
+    const lane = Math.floor(Math.random() * 4);
+    pattern.push({
+      id: `note-${i}-${Date.now()}`,
+      lane,
+      timestamp: currentTimestamp
+    });
+
+    // Chance for double notes on harder difficulties
+    if (Math.random() < settings.multiChance) {
+      let secondLane = Math.floor(Math.random() * 4);
+      if (secondLane === lane) secondLane = (lane + 1) % 4;
+      pattern.push({
+        id: `note-${i}-multi-${Date.now()}`,
+        lane: secondLane,
+        timestamp: currentTimestamp
+      });
+    }
+
+    // Advance time - add slight randomness to spacing
+    const variance = (Math.random() - 0.5) * (settings.interval * 0.2);
+    currentTimestamp += settings.interval + variance;
+  }
 
   return {
-    bpm: raw.bpm || 120,
-    songTitle: raw.songTitle || "AI Melodies",
+    bpm: settings.bpm,
+    songTitle,
     difficulty,
     pattern
   };
