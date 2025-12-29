@@ -1,0 +1,7 @@
+{
+  "name": "Rhythm Blast Online",
+  "description": "A dynamic real-time multiplayer rhythm game for kids. Create rooms, challenge friends, and vibe to AI-generated beats!",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
