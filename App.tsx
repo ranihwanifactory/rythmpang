@@ -12,7 +12,6 @@ const App: React.FC = () => {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for room ID in hash
     const hash = window.location.hash;
     const roomParam = hash.split('room=')[1];
     if (roomParam) {
@@ -41,7 +40,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center snow-bg">
         <div className="text-center">
           <div className="text-6xl mb-4 floating">🧊</div>
-          <p className="text-blue-500 font-bold text-xl animate-pulse">Loading Antarctic Base...</p>
+          <p className="text-blue-500 font-bold text-xl animate-pulse">남극 기지 연결 중...</p>
         </div>
       </div>
     );
@@ -53,34 +52,32 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen snow-bg">
-      {/* Navigation Header */}
       <nav className="p-4 bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-blue-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-3xl">❄️</span>
-          <h1 className="text-xl font-black text-blue-900 hidden sm:block">Explorer AI</h1>
+          <h1 className="text-xl font-black text-blue-900 hidden sm:block">남극 탐험대</h1>
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right hidden sm:block">
-            <p className="text-xs text-blue-400 font-bold uppercase">Explorer Profile</p>
-            <p className="text-sm font-bold text-blue-900">{user.displayName || 'Unnamed Scout'}</p>
+            <p className="text-xs text-blue-400 font-bold uppercase">내 정보</p>
+            <p className="text-sm font-bold text-blue-900">{user.displayName || '탐험 대원'}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-blue-100 border-2 border-blue-200 overflow-hidden">
+          <div className="w-10 h-10 rounded-full bg-blue-100 border-2 border-blue-200 overflow-hidden flex items-center justify-center">
             {user.photoURL ? (
               <img src={user.photoURL} className="w-full h-full object-cover" />
             ) : (
-              <span className="flex items-center justify-center h-full text-xl">👤</span>
+              <span className="text-xl">👤</span>
             )}
           </div>
           <button 
             onClick={() => auth.signOut()} 
-            className="text-xs font-bold text-red-400 hover:text-red-600 border border-red-100 px-3 py-1 rounded-full bg-white transition-all"
+            className="text-xs font-bold text-red-400 hover:text-red-600 border border-red-100 px-3 py-1 rounded-full bg-white transition-all shadow-sm"
           >
-            Logout
+            로그아웃
           </button>
         </div>
       </nav>
 
-      {/* View Switcher */}
       <main className="container mx-auto py-8">
         {currentRoomId ? (
           <Game roomId={currentRoomId} onExit={handleExitRoom} />
@@ -89,9 +86,8 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Fun Footer */}
       <footer className="p-8 text-center text-blue-300 text-sm font-medium">
-        <p>Built with ❤️ for young explorers worldwide • Powered by Gemini AI</p>
+        <p>© 2024 어린이 남극 탐험대 • 신나게 배우고 즐겨요!</p>
       </footer>
     </div>
   );

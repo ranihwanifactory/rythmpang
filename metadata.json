@@ -1,8 +1,6 @@
+
 {
-  "name": "Antarctic Explorer AI",
-  "description": "A fun and educational Antarctic exploration game for kids, featuring real-time multiplayer rooms, Google authentication, and an AI penguin guide powered by Gemini.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
+  "name": "남극 탐험대 AI",
+  "description": "친구들과 함께 즐기는 신나는 남극 탐험 게임! 펭귄 핑고와 함께 남극에 대해 배워봐요.",
+  "requestFramePermissions": []
 }

@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { ref, onValue, set, push, remove } from 'firebase/database';
+import { ref, onValue, set, push } from 'firebase/database';
 import { db, auth } from '../firebase';
-// Added Player to imports to fix type casting
 import { Room, Player } from '../types';
 
 interface LobbyProps {
@@ -41,13 +40,13 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoinRoom }) => {
     const roomData: Partial<Room> = {
       name: newRoomName,
       hostId: user.uid,
-      hostName: user.displayName || 'Anonymous Explorer',
+      hostName: user.displayName || '익명의 탐험가',
       status: 'waiting',
       createdAt: Date.now(),
       players: {
         [user.uid]: {
           uid: user.uid,
-          displayName: user.displayName || 'Explorer',
+          displayName: user.displayName || '탐험가',
           email: user.email || '',
           photoURL: user.photoURL || '',
           score: 0,
@@ -67,25 +66,25 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoinRoom }) => {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
         <div>
-          <h2 className="text-4xl font-black text-blue-900 mb-2">Adventure Lobby 🏕️</h2>
-          <p className="text-blue-500">Pick a base camp or start your own!</p>
+          <h2 className="text-4xl font-black text-blue-900 mb-2">탐험 대기실 🏕️</h2>
+          <p className="text-blue-500 font-medium">참여할 기지를 선택하거나 직접 만들어보세요!</p>
         </div>
         <button
           onClick={() => setIsCreating(true)}
           className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-2xl font-bold shadow-xl transform transition-all active:scale-95"
         >
-          + New Base Camp
+          + 새 기지 만들기
         </button>
       </div>
 
       {isCreating && (
         <div className="fixed inset-0 bg-blue-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl border-4 border-orange-100">
-            <h3 className="text-2xl font-bold text-blue-900 mb-4">Name your Camp</h3>
+            <h3 className="text-2xl font-bold text-blue-900 mb-4">기지 이름 정하기</h3>
             <input
               autoFocus
               className="w-full px-4 py-3 rounded-xl border-2 border-blue-50 focus:border-blue-300 outline-none mb-6"
-              placeholder="e.g., Snowy Peak 🏔️"
+              placeholder="예: 눈보라 기지 🏔️"
               value={newRoomName}
               onChange={(e) => setNewRoomName(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && createRoom()}
@@ -95,13 +94,13 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoinRoom }) => {
                 onClick={() => setIsCreating(false)}
                 className="flex-1 py-3 text-blue-400 font-bold hover:bg-blue-50 rounded-xl"
               >
-                Cancel
+                취소
               </button>
               <button
                 onClick={createRoom}
                 className="flex-1 py-3 bg-blue-500 text-white font-bold rounded-xl shadow-lg"
               >
-                Go!
+                만들기!
               </button>
             </div>
           </div>
@@ -112,7 +111,7 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoinRoom }) => {
         {rooms.length === 0 ? (
           <div className="col-span-full py-20 text-center">
             <div className="text-6xl mb-4">❄️</div>
-            <p className="text-blue-300 font-medium italic">No expeditions yet. Be the first to start!</p>
+            <p className="text-blue-300 font-bold">아직 열려있는 기지가 없어요. 직접 만들어볼까요?</p>
           </div>
         ) : (
           rooms.map((room) => (
@@ -123,21 +122,20 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoinRoom }) => {
             >
               <div className="flex justify-between items-start mb-4">
                 <span className="text-2xl">⛺</span>
-                <span className="text-xs bg-green-100 text-green-600 px-3 py-1 rounded-full font-bold">Waiting</span>
+                <span className="text-xs bg-green-100 text-green-600 px-3 py-1 rounded-full font-bold">대기중</span>
               </div>
               <h4 className="text-xl font-bold text-blue-800 mb-1">{room.name}</h4>
-              <p className="text-sm text-blue-400 mb-4">Leader: {room.hostName}</p>
+              <p className="text-sm text-blue-400 mb-4">대장: {room.hostName}</p>
               <div className="flex items-center gap-2">
                 <div className="flex -space-x-2">
-                  {/* Fixed: cast to Player[] to resolve Property 'uid' does not exist on type 'unknown' */}
-                  {(Object.values(room.players || {}) as Player[]).map((p, i) => (
+                  {(Object.values(room.players || {}) as Player[]).map((p) => (
                     <div key={p.uid} className="w-8 h-8 rounded-full border-2 border-white bg-blue-100 flex items-center justify-center overflow-hidden">
                       {p.photoURL ? <img src={p.photoURL} className="w-full h-full object-cover" /> : <span>👤</span>}
                     </div>
                   ))}
                 </div>
                 <span className="text-xs font-bold text-blue-300">
-                  {Object.keys(room.players || {}).length} explorer(s)
+                  {Object.keys(room.players || {}).length}명의 대원
                 </span>
               </div>
             </div>
