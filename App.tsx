@@ -6,6 +6,7 @@ import LoginView from './views/LoginView';
 import LobbyView from './views/LobbyView';
 import WaitingRoomView from './views/WaitingRoomView';
 import GameView from './views/GameView';
+import { Snowflake } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -14,25 +15,34 @@ const App: React.FC = () => {
   const [view, setView] = useState<'lobby' | 'waiting' | 'game'>('lobby');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-
-    // Check URL hash for direct room access
+    // Check URL hash for direct room access on initial load
     const hash = window.location.hash.replace('#', '');
     if (hash) {
       setCurrentRoomId(hash);
       setView('waiting');
     }
 
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoading(false);
+    }, (error) => {
+      console.error("Auth state change error:", error);
+      setLoading(false);
+    });
+
     return () => unsubscribe();
   }, []);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0f0f1a]">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-pink-500"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0f172a] text-white">
+        <div className="relative">
+          <Snowflake className="w-16 h-16 text-blue-400 animate-spin-slow" />
+          <div className="absolute inset-0 flex items-center justify-center text-2xl">
+            🐧
+          </div>
+        </div>
+        <h2 className="mt-6 text-xl font-game tracking-widest animate-pulse">LOADING EXPEDITION...</h2>
       </div>
     );
   }
@@ -42,7 +52,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[#0f172a]">
       {view === 'lobby' && (
         <LobbyView 
           user={user} 

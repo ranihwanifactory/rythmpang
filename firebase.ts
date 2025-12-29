@@ -1,22 +1,16 @@
 
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signOut,
-  onAuthStateChanged
+  GoogleAuthProvider 
 } from "firebase/auth";
 import { 
   getDatabase, 
   ref, 
   set, 
-  onValue, 
   push, 
   remove, 
-  update,
-  onDisconnect,
-  get
+  onDisconnect 
 } from "firebase/database";
 
 const firebaseConfig = {
@@ -29,12 +23,13 @@ const firebaseConfig = {
   appId: "1:289443560144:web:6ef844f5e4a022fca13cd5"
 };
 
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase safely
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const database = getDatabase(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Database helpers
+// Database helpers for Penguin Race
 export const createRoom = async (uid: string, name: string) => {
   const roomsRef = ref(database, 'rooms');
   const newRoomRef = push(roomsRef);
@@ -49,8 +44,9 @@ export const createRoom = async (uid: string, name: string) => {
       [uid]: {
         uid,
         name,
-        score: 0,
-        combo: 0,
+        distance: 0,
+        lane: 1,
+        speed: 0,
         status: 'waiting'
       }
     },
@@ -72,8 +68,9 @@ export const joinRoom = async (roomId: string, uid: string, name: string) => {
   await set(playerRef, {
     uid,
     name,
-    score: 0,
-    combo: 0,
+    distance: 0,
+    lane: 1,
+    speed: 0,
     status: 'waiting'
   });
 };
