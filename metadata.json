@@ -1,6 +1,8 @@
-
 {
-  "name": "Penguin Snow Dash",
-  "description": "A dynamic real-time multiplayer penguin racing game. Avoid obstacles and reach the finish line first!",
-  "requestFramePermissions": []
+  "name": "Antarctic Explorer AI",
+  "description": "A fun and educational Antarctic exploration game for kids, featuring real-time multiplayer rooms, Google authentication, and an AI penguin guide powered by Gemini.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }
