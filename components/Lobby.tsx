@@ -37,23 +37,30 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoinRoom }) => {
 
     const roomsRef = ref(db, 'rooms');
     const newRoomRef = push(roomsRef);
+
+    // Fix: Added missing 'status' property to the Player object to satisfy the Player interface.
+    // Explicitly typing the 'players' variable as Record<string, Player> ensures the object literal 
+    // is correctly interpreted and matches the Room interface's requirements.
+    const players: Record<string, Player> = {
+      [user.uid]: {
+        uid: user.uid,
+        displayName: user.displayName || '탐험가',
+        email: user.email || '',
+        photoURL: user.photoURL || '',
+        score: 0,
+        position: 0,
+        isReady: true,
+        status: 'playing',
+      }
+    };
+
     const roomData: Partial<Room> = {
       name: newRoomName,
       hostId: user.uid,
       hostName: user.displayName || '익명의 탐험가',
       status: 'waiting',
       createdAt: Date.now(),
-      players: {
-        [user.uid]: {
-          uid: user.uid,
-          displayName: user.displayName || '탐험가',
-          email: user.email || '',
-          photoURL: user.photoURL || '',
-          score: 0,
-          position: 0,
-          isReady: true,
-        }
-      }
+      players: players
     };
 
     await set(newRoomRef, roomData);

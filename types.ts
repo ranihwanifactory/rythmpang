@@ -8,8 +8,10 @@ export interface UserProfile {
 
 export interface Player extends UserProfile {
   score: number;
-  position: number;
+  position: number; // 진행 거리 (0~1000)
   isReady: boolean;
+  status: 'playing' | 'finished' | 'failed';
+  finishTime?: number;
 }
 
 export interface Room {
@@ -20,13 +22,4 @@ export interface Room {
   players: Record<string, Player>;
   status: 'waiting' | 'playing' | 'finished';
   createdAt: number;
-  currentTurn?: string;
-}
-
-export interface GameMessage {
-  id: string;
-  sender: string;
-  text: string;
-  timestamp: number;
-  isAI?: boolean;
 }
