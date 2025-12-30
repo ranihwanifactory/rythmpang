@@ -35,10 +35,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
       const currentRoom = roomSnap.val() as Room;
       
       if (currentRoom && currentRoom.hostId === user.uid) {
-        // 방장이 네트워크 연결이 끊기면 방 전체 삭제
         onDisconnect(roomRef).remove();
       } else {
-        // 일반 참가자가 끊기면 본인만 삭제
         onDisconnect(playerRef).remove();
       }
     };
@@ -62,10 +60,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
 
   const handleLeaveGame = async () => {
     if (room && room.hostId === user.uid) {
-      // 방장이 직접 "나가기"를 누르면 방 전체 삭제
       await remove(roomRef);
     } else {
-      // 참가자가 "나가기"를 누르면 본인만 삭제
       await remove(playerRef);
     }
     onLeave();
@@ -82,10 +78,24 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
     await update(gameRef, { status: 'playing', currentRound: 1 });
   };
 
-  const copyLink = () => {
-    const link = `${window.location.origin}/#room/${roomId}`;
-    navigator.clipboard.writeText(link);
-    alert(`방 번호 [${roomId}] 복사 완료! 친구에게 이 번호를 알려줘! ✨`);
+  const handleShare = async () => {
+    const shareData = {
+      title: '초특급 번개 순발력 대결',
+      text: `⚡ "${room?.roomName}" 방에서 같이 순발력 대결하자! 대결 코드: [${roomId}]`,
+      url: `${window.location.origin}/#room/${roomId}`
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback to clipboard if Web Share API is not available
+        await navigator.clipboard.writeText(shareData.url);
+        alert(`공유 링크가 복사되었습니다! 친구에게 전달해주세요. ✨`);
+      }
+    } catch (err) {
+      console.log('Error sharing:', err);
+    }
   };
 
   if (loading || !room) return (
@@ -127,10 +137,10 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
           
           <div className="flex justify-center">
             <button 
-              onClick={copyLink}
+              onClick={handleShare}
               className="bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-full font-bold flex items-center gap-3 border-2 border-white/20 transition-all shadow-xl active:scale-95"
             >
-              <span>🔗 링크 복사해서 친구 초대하기</span>
+              <span>📤 친구에게 초대 링크 보내기</span>
             </button>
           </div>
         </div>
@@ -159,7 +169,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
                 <span className="font-black text-white text-lg truncate w-full text-center drop-shadow-md">{player.name}</span>
               </div>
             ))}
-            {/* 빈 자리 표시 */}
             {playersArr.length < 4 && Array.from({ length: 4 - playersArr.length }).map((_, i) => (
               <div key={i} className="flex flex-col items-center opacity-30">
                 <div className="w-28 h-28 rounded-[2.8rem] border-4 border-dashed border-indigo-400 flex items-center justify-center">

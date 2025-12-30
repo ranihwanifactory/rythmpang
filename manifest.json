@@ -1,0 +1,24 @@
+
+{
+  "name": "초특급 번개 순발력 대결",
+  "short_name": "번개대결",
+  "description": "친구들과 펼치는 실시간 반응속도 대결!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/pixel-art/png?seed=game&backgroundColor=facc15&size=192",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/pixel-art/png?seed=game&backgroundColor=facc15&size=512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
