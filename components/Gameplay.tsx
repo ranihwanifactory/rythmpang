@@ -13,30 +13,31 @@ interface GameplayProps {
 const Gameplay: React.FC<GameplayProps> = ({ user, room }) => {
   const [phase, setPhase] = useState<GamePhase>(GamePhase.IDLE);
   const [startTime, setStartTime] = useState<number>(0);
-  const [message, setMessage] = useState('곧 시작합니다...');
+  const [message, setMessage] = useState('전투를 준비하세요!');
   const [lastTime, setLastTime] = useState<number | null>(null);
   const [shake, setShake] = useState(false);
+  const [invert, setInvert] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
   const isHost = user.uid === room.hostId;
 
   useEffect(() => {
-    if (room.game.status === 'playing') {
+    if (room.game?.status === 'playing') {
       startRoundSequence();
     }
-  }, [room.game.currentRound, room.game.status]);
+  }, [room.game?.currentRound, room.game?.status]);
 
   const startRoundSequence = () => {
     setPhase(GamePhase.WAITING_FOR_GREEN);
-    setMessage('기다려요... ✋');
+    setMessage('집중해! 아직 아니야... 🤫');
     setLastTime(null);
 
-    const delay = 1500 + Math.random() * 4000;
+    const delay = 1500 + Math.random() * 4500;
     
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = window.setTimeout(() => {
       setPhase(GamePhase.CLICK_NOW);
-      setMessage('지금이야!!!! 🔥');
+      setMessage('지금이야!!! 눌러!!!! 🔥');
       setStartTime(Date.now());
     }, delay);
   };
@@ -44,15 +45,17 @@ const Gameplay: React.FC<GameplayProps> = ({ user, room }) => {
   const handleClick = async () => {
     if (phase === GamePhase.WAITING_FOR_GREEN) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setMessage('너무 빨랐어! 🤦 1초 패널티!');
+      setMessage('아이쿠! 너무 빨랐어! 🤦');
       setShake(true);
       setTimeout(() => setShake(false), 300);
-      submitScore(1000);
+      submitScore(1200); // Penalty
       setPhase(GamePhase.FINISHED);
     } else if (phase === GamePhase.CLICK_NOW) {
       const reaction = Date.now() - startTime;
       setLastTime(reaction);
-      setMessage(`${reaction}ms! 엄청나! ✨`);
+      setInvert(true);
+      setTimeout(() => setInvert(false), 150);
+      setMessage(`${reaction}ms! 대단해! ⚡`);
       submitScore(reaction);
       setPhase(GamePhase.FINISHED);
     }
@@ -93,28 +96,28 @@ const Gameplay: React.FC<GameplayProps> = ({ user, room }) => {
     await update(gameRef, { status: 'waiting', currentRound: 0 });
   };
 
-  if (room.game.status === 'results') {
+  if (room.game?.status === 'results') {
     const sortedPlayers = (Object.values(room.players) as Player[]).sort((a, b) => a.score - b.score);
 
     return (
       <div className="max-w-2xl mx-auto pt-10 px-4 pb-20">
-        <div className="bg-white/10 backdrop-blur-2xl rounded-[3rem] shadow-2xl overflow-hidden text-center p-12 border border-white/20">
-          <h1 className="text-5xl font-jua text-yellow-400 mb-4 animate-bounce">명예의 전당 🏆</h1>
-          <p className="text-blue-200 mb-10 font-bold">이번 판의 순위표야!</p>
+        <div className="bg-gradient-to-b from-indigo-900/80 to-purple-900/80 backdrop-blur-3xl rounded-[4rem] shadow-2xl overflow-hidden text-center p-14 border-4 border-yellow-400">
+          <h1 className="text-6xl font-jua text-yellow-300 mb-4 animate-bounce drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]">시상대 🏆</h1>
+          <p className="text-indigo-200 mb-12 font-bold text-xl italic">누가 가장 빛나는 승자인가!</p>
           
-          <div className="space-y-4 mb-12">
+          <div className="space-y-6 mb-16">
             {sortedPlayers.map((p, idx) => (
-              <div key={p.uid} className={`flex items-center justify-between p-6 rounded-[2rem] border-2 transition-all ${idx === 0 ? 'bg-yellow-400/20 border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.2)]' : 'bg-white/5 border-white/10'}`}>
-                <div className="flex items-center gap-5">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-jua text-2xl ${idx === 0 ? 'bg-yellow-400 text-indigo-900' : 'bg-indigo-500 text-white'}`}>
-                    {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+              <div key={p.uid} className={`flex items-center justify-between p-8 rounded-[3rem] border-4 transition-all duration-500 animate-pop ${idx === 0 ? 'bg-gradient-to-r from-yellow-300 to-orange-400 border-yellow-200 shadow-[0_0_50px_rgba(250,204,21,0.4)] scale-105' : 'bg-white/5 border-white/10'}`}>
+                <div className="flex items-center gap-6">
+                  <div className={`w-16 h-16 rounded-3xl flex items-center justify-center font-jua text-3xl shadow-lg ${idx === 0 ? 'bg-indigo-900 text-yellow-300' : 'bg-indigo-600 text-white'}`}>
+                    {idx === 0 ? '👑' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                   </div>
-                  <img src={p.photoURL} className="w-12 h-12 rounded-xl shadow-md" alt={p.name} />
-                  <span className={`font-black text-xl ${idx === 0 ? 'text-yellow-400' : 'text-white'}`}>{p.name}</span>
+                  <img src={p.photoURL} className="w-16 h-16 rounded-2xl shadow-xl ring-4 ring-white/20" alt={p.name} />
+                  <span className={`font-black text-2xl ${idx === 0 ? 'text-indigo-900' : 'text-white'}`}>{p.name}</span>
                 </div>
                 <div className="text-right">
-                  <div className="font-jua text-2xl text-white">{p.score}ms</div>
-                  <div className="text-[10px] uppercase font-black text-blue-400">Total Speed</div>
+                  <div className={`font-jua text-3xl ${idx === 0 ? 'text-indigo-900' : 'text-white'}`}>{p.score}ms</div>
+                  <div className={`text-[10px] uppercase font-black ${idx === 0 ? 'text-indigo-800' : 'text-indigo-400'}`}>전체 기록</div>
                 </div>
               </div>
             ))}
@@ -123,66 +126,68 @@ const Gameplay: React.FC<GameplayProps> = ({ user, room }) => {
           {isHost ? (
             <button 
               onClick={resetGame}
-              className="w-full py-6 bg-yellow-400 hover:bg-yellow-500 text-indigo-900 font-jua text-3xl rounded-[2rem] shadow-xl clay-button border-b-8 border-yellow-700 active:scale-95"
+              className="w-full py-8 bg-gradient-to-r from-pink-500 to-red-500 text-white font-jua text-4xl rounded-[3rem] shadow-[0_10px_0_rgb(150,30,50)] active:translate-y-2 active:shadow-none transition-all"
             >
-              다시 한 판 더! 🤜
+              한판 더 가자! 🤜
             </button>
           ) : (
-            <p className="text-gray-400 font-black animate-pulse">방장이 다시 시작하기를 기다리는 중...</p>
+            <div className="p-6 bg-white/5 rounded-[2rem] border-2 border-dashed border-white/20">
+               <p className="text-indigo-300 font-black animate-pulse text-xl">방장님, 어서 다음 판을 시작해주세요! 🙏</p>
+            </div>
           )}
         </div>
       </div>
     );
   }
 
-  const bgColor = phase === GamePhase.CLICK_NOW ? 'bg-green-500 shadow-[0_0_80px_rgba(34,197,94,0.4)]' : phase === GamePhase.WAITING_FOR_GREEN ? 'bg-red-500' : 'bg-indigo-600';
+  const bgColor = phase === GamePhase.CLICK_NOW ? 'bg-gradient-to-br from-green-400 to-green-600 shadow-[0_0_100px_rgba(34,197,94,0.6)]' : phase === GamePhase.WAITING_FOR_GREEN ? 'bg-gradient-to-br from-red-500 to-red-700' : 'bg-indigo-800';
 
   return (
-    <div className={`min-h-screen flex flex-col transition-all duration-300 ${shake ? 'animate-shake' : ''}`}>
-      <div className="flex items-center justify-between p-8 bg-white/5 backdrop-blur-md border-b border-white/10">
-        <div className="font-jua text-yellow-400 text-3xl">ROUND {room.game.currentRound}/{room.game.totalRounds}</div>
-        <div className="flex -space-x-4">
+    <div className={`min-h-screen flex flex-col transition-all duration-300 ${shake ? 'animate-shake' : ''} ${invert ? 'invert' : ''}`}>
+      <div className="flex items-center justify-between p-10 bg-black/30 backdrop-blur-xl border-b-4 border-white/10">
+        <div className="font-jua text-yellow-400 text-4xl drop-shadow-md">진행 {room.game?.currentRound}/{room.game?.totalRounds}</div>
+        <div className="flex -space-x-5">
           {(Object.values(room.players) as Player[]).map(p => (
-            <img key={p.uid} src={p.photoURL} className="w-12 h-12 rounded-2xl border-4 border-[#1a1a2e] shadow-xl" title={p.name} />
+            <img key={p.uid} src={p.photoURL} className="w-14 h-14 rounded-[1.5rem] border-4 border-indigo-900 shadow-2xl" title={p.name} />
           ))}
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center p-6">
+      <div className="flex-1 flex flex-col items-center justify-center p-8">
         <button 
           onClick={handleClick}
           disabled={phase === GamePhase.FINISHED}
-          className={`w-full max-w-lg h-[28rem] rounded-[4rem] shadow-2xl flex flex-col items-center justify-center text-white transition-all active:scale-[0.97] border-b-[16px] ${bgColor} ${phase === GamePhase.FINISHED ? 'opacity-80 border-black/20' : 'cursor-pointer border-black/30'}`}
+          className={`w-full max-w-xl h-[32rem] rounded-[5rem] shadow-2xl flex flex-col items-center justify-center text-white transition-all active:scale-[0.95] border-b-[20px] ${bgColor} ${phase === GamePhase.FINISHED ? 'opacity-80 border-black/30' : 'cursor-pointer border-black/40'}`}
         >
-          <span className="text-5xl md:text-7xl font-jua mb-8 text-center px-8 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]">
+          <span className="text-6xl md:text-8xl font-jua mb-10 text-center px-10 drop-shadow-[0_6px_6px_rgba(0,0,0,0.4)] leading-tight">
             {message}
           </span>
           {lastTime && (
             <div className="animate-pop">
-              <span className="text-3xl font-black bg-black/30 px-8 py-3 rounded-full backdrop-blur-sm border border-white/20">
-                 {lastTime}ms !
+              <span className="text-4xl font-black bg-white/20 px-10 py-4 rounded-full backdrop-blur-md border-2 border-white/30 shadow-lg">
+                 🚀 {lastTime}ms
               </span>
             </div>
           )}
         </button>
 
-        <div className="mt-12 w-full max-w-lg">
-          <div className="bg-white/10 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
-            <h3 className="font-jua text-blue-300 mb-6 text-center tracking-widest uppercase">실시간 상황 중계 📡</h3>
-            <div className="space-y-4">
+        <div className="mt-16 w-full max-w-xl">
+          <div className="bg-indigo-900/40 backdrop-blur-2xl p-10 rounded-[4rem] border-2 border-white/10 shadow-3xl">
+            <h3 className="font-jua text-pink-400 mb-8 text-center text-2xl tracking-widest uppercase">실시간 순위 중계소 📻</h3>
+            <div className="space-y-5">
               {(Object.values(room.players) as Player[]).map(p => (
-                <div key={p.uid} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <img src={p.photoURL} className="w-8 h-8 rounded-lg" />
-                    <span className="font-bold text-white text-sm">{p.name}</span>
+                <div key={p.uid} className="flex items-center justify-between bg-white/5 p-5 rounded-[2rem] border border-white/5 transition-all">
+                  <div className="flex items-center gap-4">
+                    <img src={p.photoURL} className="w-10 h-10 rounded-xl" />
+                    <span className="font-black text-white text-lg">{p.name}</span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center">
                     {p.lastReactionTime ? (
-                      <span className={`text-sm font-black px-4 py-1 rounded-full ${p.lastReactionTime > 800 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                      <span className={`text-lg font-black px-6 py-2 rounded-2xl ${p.lastReactionTime > 800 ? 'bg-red-500/30 text-red-300' : 'bg-green-500/30 text-green-300'}`}>
                         {p.lastReactionTime}ms
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-500 italic animate-pulse">대기 중...</span>
+                      <span className="text-sm text-white/30 font-bold italic animate-pulse">측정 대기...</span>
                     )}
                   </div>
                 </div>
@@ -193,9 +198,9 @@ const Gameplay: React.FC<GameplayProps> = ({ user, room }) => {
           {phase === GamePhase.FINISHED && isHost && (
             <button 
               onClick={handleNextRound}
-              className="w-full mt-10 py-6 bg-yellow-400 hover:bg-yellow-500 text-indigo-900 font-jua text-3xl rounded-[2.5rem] shadow-2xl animate-bounce-subtle border-b-8 border-yellow-700"
+              className="w-full mt-12 py-8 bg-gradient-to-r from-blue-400 to-indigo-600 text-white font-jua text-4xl rounded-[3rem] shadow-[0_10px_0_rgb(30,30,120)] active:translate-y-2 active:shadow-none animate-bounce-subtle"
             >
-              {room.game.currentRound >= room.game.totalRounds ? '결과 확인하기 🏆' : '다음 라운드 Go! ▶️'}
+              {room.game.currentRound >= room.game.totalRounds ? '결과 보러 가자! ✨' : '다음 라운드 진격! ▶️'}
             </button>
           )}
         </div>

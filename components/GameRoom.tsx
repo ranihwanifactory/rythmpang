@@ -19,7 +19,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
   useEffect(() => {
     const roomRef = ref(db, `rooms/${roomId}`);
     
-    // Listen for room changes
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (!data) {
@@ -30,7 +29,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
       setLoading(false);
     });
 
-    // Host Management: If host leaves, delete room. If player leaves, remove self.
     const setupDisconnect = async () => {
       const snap = await onValue(roomRef, (s) => {}, { onlyOnce: true });
       const currentRoom = snap.snapshot.val() as Room;
@@ -76,12 +74,13 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
   const copyLink = () => {
     const link = `${window.location.origin}/#room/${roomId}`;
     navigator.clipboard.writeText(link);
-    alert('방 링크가 복사되었어! 친구에게 보내줘! 🔗');
+    alert('친구 초대 링크가 복사됐어! 얼른 친구들 불러오자! ✨');
   };
 
   if (loading || !room) return (
     <div className="flex flex-col items-center justify-center min-h-screen">
-      <div className="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+      <div className="w-20 h-20 border-8 border-indigo-500 border-t-pink-500 rounded-full animate-spin shadow-2xl"></div>
+      <p className="mt-8 text-2xl font-jua text-white animate-pulse">맵 불러오는 중...</p>
     </div>
   );
 
@@ -89,97 +88,102 @@ const GameRoom: React.FC<GameRoomProps> = ({ user, roomId, onLeave }) => {
   const isHost = room.hostId === user.uid;
   const allReady = playersArr.every(p => p.isReady || p.uid === room.hostId);
 
-  if (room.game.status === 'playing' || room.game.status === 'results') {
+  if (room.game?.status === 'playing' || room.game?.status === 'results') {
     return <Gameplay user={user} room={room} />;
   }
 
   return (
     <div className="max-w-4xl mx-auto pt-10 px-4 pb-20">
-      <div className="bg-white/5 backdrop-blur-xl rounded-[3rem] shadow-2xl overflow-hidden border border-white/10">
-        <div className="bg-gradient-to-r from-indigo-700 to-purple-800 p-10 text-white relative">
-          <div className="flex justify-between items-center mb-6">
-            <button onClick={onLeave} className="bg-white/10 hover:bg-white/20 p-3 rounded-2xl transition-colors border border-white/10">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      <div className="bg-indigo-900/40 backdrop-blur-2xl rounded-[4rem] shadow-[0_30px_100px_rgba(0,0,0,0.4)] overflow-hidden border-2 border-white/20">
+        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-12 text-white relative">
+          <div className="flex justify-between items-center mb-10">
+            <button onClick={onLeave} className="bg-white/20 hover:bg-white/30 p-4 rounded-3xl transition-all border border-white/20 active:scale-90">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             </button>
-            <h1 className="text-3xl font-jua">게임 대기실 🏁</h1>
-            <div className="w-12"></div>
+            <h1 className="text-4xl font-jua drop-shadow-lg">대기실에서 준비 중... 🏁</h1>
+            <div className="w-16"></div>
           </div>
-          <p className="text-center text-blue-200 text-xl font-bold mb-8">방 제목: {room.roomName}</p>
+          
+          <div className="bg-black/20 p-6 rounded-[2.5rem] mb-10 text-center">
+             <p className="text-white text-3xl font-jua mb-2">{room.roomName}</p>
+             <p className="text-indigo-200 font-bold opacity-80 uppercase tracking-widest text-xs">Battle Arena</p>
+          </div>
           
           <div className="flex justify-center">
             <button 
               onClick={copyLink}
-              className="bg-yellow-400 text-indigo-900 px-8 py-3 rounded-full font-black flex items-center gap-3 clay-button shadow-[0_4px_0_rgb(180,120,0)] hover:scale-105 transition-all"
+              className="bg-yellow-400 text-indigo-900 px-10 py-4 rounded-full font-black flex items-center gap-4 clay-button shadow-[0_6px_0_rgb(180,120,0)] hover:scale-105 active:translate-y-1 transition-all"
             >
-              <span>🔗 친구 초대 링크 복사</span>
+              <span className="text-2xl">🔗</span>
+              <span className="text-lg">친구 초대 링크 복사하기</span>
             </button>
           </div>
         </div>
 
-        <div className="p-10">
-          <h2 className="text-xl font-jua text-blue-300 mb-8 text-center uppercase tracking-widest">접속 중인 플레이어</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-16">
+        <div className="p-12">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-20">
             {playersArr.map((player) => (
-              <div key={player.uid} className="flex flex-col items-center animate-pop">
-                <div className="relative mb-4 group">
+              <div key={player.uid} className="flex flex-col items-center animate-pop group">
+                <div className="relative mb-6">
                   <img 
                     src={player.photoURL} 
-                    className={`w-24 h-24 rounded-[2rem] border-4 ${player.isReady ? 'border-green-400 shadow-[0_0_20px_rgba(74,222,128,0.5)]' : 'border-white/10'} shadow-xl transition-all group-hover:scale-110`}
+                    className={`w-28 h-28 rounded-[2.5rem] border-8 ${player.isReady ? 'border-green-400 shadow-[0_0_40px_rgba(74,222,128,0.6)]' : 'border-white/10'} shadow-2xl transition-all group-hover:scale-110 group-hover:rotate-3`}
                     alt={player.name}
                   />
                   {player.isReady && (
-                    <div className="absolute -bottom-2 -right-2 bg-green-500 text-white px-2 py-1 rounded-xl shadow-lg text-[10px] font-black">
-                      준비완료!
+                    <div className="absolute -bottom-3 -right-3 bg-green-500 text-white p-2 rounded-2xl shadow-xl ring-4 ring-white">
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
                     </div>
                   )}
                   {player.uid === room.hostId && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-indigo-900 text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
-                      👑 방장
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-yellow-400 text-indigo-900 text-xs font-black px-4 py-2 rounded-full shadow-lg border-2 border-indigo-900 animate-bounce">
+                      방장
                     </div>
                   )}
                 </div>
-                <span className="font-bold text-white text-base truncate w-full text-center">{player.name}</span>
+                <span className="font-black text-white text-lg truncate w-full text-center drop-shadow-md">{player.name}</span>
               </div>
             ))}
             
             {Array.from({ length: Math.max(0, 4 - playersArr.length) }).map((_, i) => (
-              <div key={i} className="flex flex-col items-center opacity-20">
-                <div className="w-24 h-24 rounded-[2rem] bg-white/5 border-4 border-dashed border-white/20 flex items-center justify-center">
-                   <span className="text-4xl text-white/30">?</span>
+              <div key={i} className="flex flex-col items-center opacity-20 hover:opacity-40 transition-opacity">
+                <div className="w-28 h-28 rounded-[2.5rem] bg-white/10 border-4 border-dashed border-white/40 flex items-center justify-center">
+                   <span className="text-6xl text-white/20">+</span>
                 </div>
-                <span className="mt-4 font-bold text-white/30 text-sm">기다리는 중...</span>
               </div>
             ))}
           </div>
 
-          <div className="flex flex-col items-center gap-6">
+          <div className="flex flex-col items-center gap-8">
             {!isHost ? (
               <button 
                 onClick={handleToggleReady}
-                className={`w-full max-w-sm py-6 rounded-3xl font-jua text-2xl shadow-xl transition-all active:scale-95 border-b-8 ${
+                className={`w-full max-w-sm py-8 rounded-[2.5rem] font-jua text-3xl shadow-2xl transition-all active:scale-95 border-b-[12px] ${
                   room.players[user.uid]?.isReady 
-                  ? 'bg-red-500 hover:bg-red-600 text-white border-red-800' 
-                  : 'bg-green-500 hover:bg-green-600 text-white border-green-800'
+                  ? 'bg-red-500 hover:bg-red-600 text-white border-red-900' 
+                  : 'bg-green-500 hover:bg-green-600 text-white border-green-900'
                 }`}
               >
-                {room.players[user.uid]?.isReady ? '준비 취소' : '게임 준비! ⭕'}
+                {room.players[user.uid]?.isReady ? '준비 취소!' : '준비 완료! 🏁'}
               </button>
             ) : (
               <button 
                 onClick={handleStartGame}
                 disabled={!allReady || playersArr.length < 2}
-                className={`w-full max-w-sm py-6 rounded-3xl font-jua text-2xl shadow-xl transition-all active:scale-95 border-b-8 ${
+                className={`w-full max-w-sm py-8 rounded-[2.5rem] font-jua text-3xl shadow-2xl transition-all active:scale-95 border-b-[12px] ${
                   allReady && playersArr.length >= 2 
-                  ? 'bg-yellow-400 hover:bg-yellow-500 text-indigo-900 border-yellow-700' 
-                  : 'bg-gray-700 text-gray-500 cursor-not-allowed border-gray-900'
+                  ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-indigo-900 border-orange-800' 
+                  : 'bg-white/10 text-gray-500 cursor-not-allowed border-black/20'
                 }`}
               >
-                {playersArr.length < 2 ? '친구가 더 필요해' : !allReady ? '모두 준비하면 시작!' : '게임 시작!! 🔥'}
+                {playersArr.length < 2 ? '친구가 부족해!' : !allReady ? '모두 준비 대기 중...' : '전투 시작!! 🔥'}
               </button>
             )}
-            <p className="text-gray-500 text-sm font-bold bg-white/5 px-6 py-2 rounded-full">
-              모든 사람이 준비하면 방장이 시작할 수 있어!
-            </p>
+            <div className="bg-indigo-950/50 px-8 py-3 rounded-full border border-white/10">
+               <p className="text-indigo-200 text-sm font-bold">
+                 다들 준비가 끝나면 방장이 버튼을 누를 수 있어!
+               </p>
+            </div>
           </div>
         </div>
       </div>
