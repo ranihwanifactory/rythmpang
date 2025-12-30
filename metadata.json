@@ -1,5 +1,8 @@
 {
-  "name": "남극 탐험대 AI",
-  "description": "친구들과 함께 즐기는 신나는 남극 탐험 게임! 펭귄 핑고와 함께 남극에 대해 배워봐요.",
-  "requestFramePermissions": []
+  "name": "Super Reaction Dash",
+  "description": "A high-energy, colorful multiplayer reaction game where kids can compete in speed, reflexes, and pure tapping power. Features real-time rooms, Google login, and dynamic game modes.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }

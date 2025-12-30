@@ -1,150 +1,164 @@
 
 import React, { useState, useEffect } from 'react';
-import { ref, onValue, set, push } from 'firebase/database';
-import { db, auth } from '../firebase';
-import { Room, Player } from '../types';
+import { User, signOut } from 'firebase/auth';
+import { ref, onValue, push, set, serverTimestamp } from 'firebase/database';
+import { auth, db } from '../firebase';
+import { Room } from '../types';
 
 interface LobbyProps {
-  onJoinRoom: (roomId: string) => void;
+  user: User;
+  onJoinRoom: (id: string) => void;
 }
 
-export const Lobby: React.FC<LobbyProps> = ({ onJoinRoom }) => {
+const Lobby: React.FC<LobbyProps> = ({ user, onJoinRoom }) => {
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [newRoomName, setNewRoomName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [newRoomName, setNewRoomName] = useState('');
 
   useEffect(() => {
     const roomsRef = ref(db, 'rooms');
     const unsubscribe = onValue(roomsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const roomsList: Room[] = Object.keys(data).map((id) => ({
-          ...data[id],
-          id,
+        const roomList = Object.entries(data).map(([id, room]: [string, any]) => ({
+          ...room,
+          id
         }));
-        setRooms(roomsList.filter(r => r.status === 'waiting'));
+        setRooms(roomList);
       } else {
         setRooms([]);
       }
     });
+
     return () => unsubscribe();
   }, []);
 
-  const createRoom = async () => {
+  const handleCreateRoom = async () => {
     if (!newRoomName.trim()) return;
-    const user = auth.currentUser;
-    if (!user) return;
-
+    
     const roomsRef = ref(db, 'rooms');
     const newRoomRef = push(roomsRef);
-
-    // Fix: Added missing 'status' property to the Player object to satisfy the Player interface.
-    // Explicitly typing the 'players' variable as Record<string, Player> ensures the object literal 
-    // is correctly interpreted and matches the Room interface's requirements.
-    const players: Record<string, Player> = {
-      [user.uid]: {
-        uid: user.uid,
-        displayName: user.displayName || '탐험가',
-        email: user.email || '',
-        photoURL: user.photoURL || '',
-        score: 0,
-        position: 0,
-        isReady: true,
-        status: 'playing',
+    const roomData = {
+      hostId: user.uid,
+      roomName: newRoomName,
+      createdAt: serverTimestamp(),
+      players: {
+        [user.uid]: {
+          uid: user.uid,
+          name: user.displayName || user.email?.split('@')[0] || '익명의 승부사',
+          photoURL: user.photoURL || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.uid}`,
+          score: 0,
+          isReady: false
+        }
+      },
+      game: {
+        status: 'waiting',
+        currentRound: 0,
+        totalRounds: 5
       }
     };
 
-    const roomData: Partial<Room> = {
-      name: newRoomName,
-      hostId: user.uid,
-      hostName: user.displayName || '익명의 탐험가',
-      status: 'waiting',
-      createdAt: Date.now(),
-      players: players
-    };
-
     await set(newRoomRef, roomData);
-    onJoinRoom(newRoomRef.key!);
-    setNewRoomName('');
     setIsCreating(false);
+    onJoinRoom(newRoomRef.key!);
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
-        <div>
-          <h2 className="text-4xl font-black text-blue-900 mb-2">탐험 대기실 🏕️</h2>
-          <p className="text-blue-500 font-medium">참여할 기지를 선택하거나 직접 만들어보세요!</p>
+    <div className="max-w-6xl mx-auto px-4 pt-12">
+      <header className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6 bg-white/5 p-8 rounded-[2.5rem] border border-white/10 backdrop-blur-sm shadow-2xl">
+        <div className="flex items-center gap-5">
+          <div className="relative">
+             <img src={user.photoURL || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.uid}`} className="w-20 h-20 rounded-3xl border-4 border-yellow-400 shadow-lg" alt="Avatar" />
+             <div className="absolute -top-3 -left-3 bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-bold animate-pulse">LIVE</div>
+          </div>
+          <div>
+            <h1 className="text-3xl font-jua text-white">안녕, {user.displayName || '플레이어'}! 👋</h1>
+            <p className="text-blue-300 font-bold">오늘은 누가 제일 빠를까?</p>
+          </div>
         </div>
-        <button
-          onClick={() => setIsCreating(true)}
-          className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-2xl font-bold shadow-xl transform transition-all active:scale-95"
-        >
-          + 새 기지 만들기
-        </button>
-      </div>
+        <div className="flex gap-4">
+          <button 
+            onClick={() => setIsCreating(true)}
+            className="bg-gradient-to-b from-green-400 to-green-600 text-indigo-900 px-8 py-4 rounded-2xl font-black text-xl clay-button shadow-[0_5px_0_rgb(30,120,50)] transition-transform hover:scale-105 active:scale-95"
+          >
+            새로운 방 만들기 ➕
+          </button>
+          <button 
+            onClick={() => signOut(auth)}
+            className="bg-white/10 text-white px-6 py-4 rounded-2xl font-bold hover:bg-white/20 transition-colors border border-white/10"
+          >
+            로그아웃
+          </button>
+        </div>
+      </header>
 
       {isCreating && (
-        <div className="fixed inset-0 bg-blue-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl border-4 border-orange-100">
-            <h3 className="text-2xl font-bold text-blue-900 mb-4">기지 이름 정하기</h3>
-            <input
-              autoFocus
-              className="w-full px-4 py-3 rounded-xl border-2 border-blue-50 focus:border-blue-300 outline-none mb-6"
-              placeholder="예: 눈보라 기지 🏔️"
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-[#242442] border-2 border-green-400 rounded-[3rem] p-10 w-full max-w-sm shadow-[0_0_50px_rgba(74,222,128,0.3)] animate-pop">
+            <h2 className="text-3xl font-jua text-white text-center mb-8">방 제목을 정해줘! 🎮</h2>
+            <input 
+              type="text" 
               value={newRoomName}
               onChange={(e) => setNewRoomName(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && createRoom()}
+              placeholder="예: 내가 제일 빨라!"
+              className="w-full bg-white/5 border-2 border-white/10 px-6 py-4 rounded-2xl text-white outline-none focus:border-green-400 mb-8 font-bold text-lg text-center"
+              autoFocus
             />
-            <div className="flex gap-3">
-              <button
+            <div className="flex gap-4">
+              <button 
                 onClick={() => setIsCreating(false)}
-                className="flex-1 py-3 text-blue-400 font-bold hover:bg-blue-50 rounded-xl"
+                className="flex-1 py-4 font-bold text-gray-400 hover:text-white transition-colors"
               >
                 취소
               </button>
-              <button
-                onClick={createRoom}
-                className="flex-1 py-3 bg-blue-500 text-white font-bold rounded-xl shadow-lg"
+              <button 
+                onClick={handleCreateRoom}
+                className="flex-1 py-4 font-black bg-green-500 text-indigo-900 rounded-2xl clay-button shadow-[0_5px_0_rgb(30,120,50)]"
               >
-                만들기!
+                방 만들기!
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {rooms.length === 0 ? (
-          <div className="col-span-full py-20 text-center">
-            <div className="text-6xl mb-4">❄️</div>
-            <p className="text-blue-300 font-bold">아직 열려있는 기지가 없어요. 직접 만들어볼까요?</p>
+          <div className="col-span-full py-32 text-center bg-white/5 rounded-[3rem] border-2 border-dashed border-white/10">
+            <div className="text-9xl mb-8 grayscale opacity-50">🎮</div>
+            <p className="text-2xl font-jua text-gray-500">지금은 열린 방이 없어... 하나 만들어볼래?</p>
           </div>
         ) : (
           rooms.map((room) => (
-            <div
+            <div 
               key={room.id}
-              onClick={() => onJoinRoom(room.id)}
-              className="bg-white p-6 rounded-3xl shadow-lg border-2 border-transparent hover:border-blue-300 cursor-pointer transform transition-all hover:-translate-y-1 hover:shadow-2xl"
+              className="bg-white/10 backdrop-blur-md rounded-[2.5rem] p-8 shadow-xl border border-white/10 hover:border-yellow-400/50 transition-all group relative overflow-hidden"
             >
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-2xl">⛺</span>
-                <span className="text-xs bg-green-100 text-green-600 px-3 py-1 rounded-full font-bold">대기중</span>
-              </div>
-              <h4 className="text-xl font-bold text-blue-800 mb-1">{room.name}</h4>
-              <p className="text-sm text-blue-400 mb-4">대장: {room.hostName}</p>
-              <div className="flex items-center gap-2">
-                <div className="flex -space-x-2">
-                  {(Object.values(room.players || {}) as Player[]).map((p) => (
-                    <div key={p.uid} className="w-8 h-8 rounded-full border-2 border-white bg-blue-100 flex items-center justify-center overflow-hidden">
-                      {p.photoURL ? <img src={p.photoURL} className="w-full h-full object-cover" /> : <span>👤</span>}
-                    </div>
-                  ))}
+              <div className="absolute top-[-10%] right-[-10%] w-32 h-32 bg-yellow-400/10 rounded-full blur-3xl group-hover:bg-yellow-400/20 transition-all"></div>
+              
+              <h3 className="text-2xl font-jua text-white mb-4 group-hover:text-yellow-400 transition-colors">{room.roomName}</h3>
+              
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-2 bg-indigo-500/30 px-4 py-2 rounded-xl border border-white/10">
+                  <span className="text-yellow-400 text-lg">👤</span>
+                  <span className="font-bold text-blue-100">{Object.keys(room.players || {}).length}명 참여 중</span>
                 </div>
-                <span className="text-xs font-bold text-blue-300">
-                  {Object.keys(room.players || {}).length}명의 대원
-                </span>
+                <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${room.game.status === 'waiting' ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-red-500/20 text-red-400 border border-red-500/50'}`}>
+                  {room.game.status === 'waiting' ? '대기 중' : '경기 중'}
+                </div>
               </div>
+
+              <button 
+                onClick={() => onJoinRoom(room.id)}
+                disabled={room.game.status !== 'waiting'}
+                className={`w-full py-5 rounded-2xl font-black text-xl transition-all shadow-lg active:scale-95 ${
+                  room.game.status === 'waiting' 
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white clay-button shadow-[0_5px_0_rgb(30,60,150)]' 
+                  : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/10'
+                }`}
+              >
+                {room.game.status === 'waiting' ? '입장하기 🚀' : '진행 중...'}
+              </button>
             </div>
           ))
         )}
@@ -152,3 +166,5 @@ export const Lobby: React.FC<LobbyProps> = ({ onJoinRoom }) => {
     </div>
   );
 };
+
+export default Lobby;

@@ -1,25 +1,34 @@
 
-export interface UserProfile {
+export interface Player {
   uid: string;
-  displayName: string;
-  email: string;
-  photoURL: string;
+  name: string;
+  photoURL?: string;
+  score: number;
+  isReady: boolean;
+  lastReactionTime?: number;
 }
 
-export interface Player extends UserProfile {
-  score: number;
-  position: number; // 진행 거리 (0~1000)
-  isReady: boolean;
-  status: 'playing' | 'finished' | 'failed';
-  finishTime?: number;
+export interface GameState {
+  status: 'waiting' | 'starting' | 'playing' | 'results';
+  startTime?: number;
+  currentRound: number;
+  totalRounds: number;
+  targetTime?: number; // When the target appears
+  winnerUid?: string;
 }
 
 export interface Room {
   id: string;
-  name: string;
   hostId: string;
-  hostName: string;
+  roomName: string;
   players: Record<string, Player>;
-  status: 'waiting' | 'playing' | 'finished';
+  game: GameState;
   createdAt: number;
+}
+
+export enum GamePhase {
+  IDLE = 'IDLE',
+  WAITING_FOR_GREEN = 'WAITING_FOR_GREEN',
+  CLICK_NOW = 'CLICK_NOW',
+  FINISHED = 'FINISHED'
 }
