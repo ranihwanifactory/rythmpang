@@ -10,48 +10,46 @@ interface GameplayProps { user: User; room: Room; }
 const Gameplay: React.FC<GameplayProps> = ({ user, room }) => {
   const [phase, setPhase] = useState<GamePhase>(GamePhase.IDLE);
   const [startTime, setStartTime] = useState<number>(0);
-  const [message, setMessage] = useState('전투 준비!');
+  const [message, setMessage] = useState('시스템 대기 중');
   const [lastTime, setLastTime] = useState<number | null>(null);
   const [shake, setShake] = useState(false);
-  const [invert, setInvert] = useState(false);
+  const [flash, setFlash] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
   const isHost = user.uid === room.hostId;
 
   useEffect(() => {
-    if (room.game?.status === 'playing') startRoundSequence();
+    if (room.game?.status === 'playing') {
+      setPhase(GamePhase.WAITING_FOR_GREEN);
+      setMessage('HOLD POSITION...');
+      setLastTime(null);
+      const delay = 2000 + Math.random() * 4000;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = window.setTimeout(() => {
+        setPhase(GamePhase.CLICK_NOW);
+        setMessage('ENGAGE NOW!');
+        setStartTime(Date.now());
+      }, delay);
+    }
   }, [room.game?.currentRound, room.game?.status]);
 
-  const startRoundSequence = () => {
-    setPhase(GamePhase.WAITING_FOR_GREEN);
-    setMessage('기다려... 🤫');
-    setLastTime(null);
-    const delay = 1500 + Math.random() * 4500;
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = window.setTimeout(() => {
-      setPhase(GamePhase.CLICK_NOW);
-      setMessage('지금이야!!! 🔥');
-      setStartTime(Date.now());
-    }, delay);
-  };
-
   const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
-    // Prevent default touch behaviors (scrolling, zooming)
     if (e.type === 'touchstart') e.preventDefault();
-    
+    if (phase === GamePhase.FINISHED) return;
+
     if (phase === GamePhase.WAITING_FOR_GREEN) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setMessage('너무 빨랐어! 🤦');
+      setMessage('EARLY TRIGGER!');
       setShake(true);
       setTimeout(() => setShake(false), 300);
-      submitScore(1200); 
+      submitScore(1500); 
       setPhase(GamePhase.FINISHED);
     } else if (phase === GamePhase.CLICK_NOW) {
       const reaction = Date.now() - startTime;
       setLastTime(reaction);
-      setInvert(true);
-      setTimeout(() => setInvert(false), 150);
-      setMessage(`${reaction}ms! 성공! ⚡`);
+      setFlash(true);
+      setTimeout(() => setFlash(false), 100);
+      setMessage(`${reaction}ms`);
       submitScore(reaction);
       setPhase(GamePhase.FINISHED);
     }
@@ -63,108 +61,108 @@ const Gameplay: React.FC<GameplayProps> = ({ user, room }) => {
     await update(playerRef, { score: currentScore + time, lastReactionTime: time });
   };
 
-  const handleNextRound = async () => {
-    if (!isHost) return;
-    const gameRef = ref(db, `rooms/${room.id}/game`);
-    if (room.game.currentRound >= room.game.totalRounds) await update(gameRef, { status: 'results' });
-    else await update(gameRef, { currentRound: room.game.currentRound + 1 });
-  };
-
-  const resetGame = async () => {
-    if (!isHost) return;
-    const gameRef = ref(db, `rooms/${room.id}/game`);
-    const playersRef = ref(db, `rooms/${room.id}/players`);
-    const updates: any = {};
-    Object.keys(room.players).forEach(uid => {
-      updates[`${uid}/score`] = 0;
-      updates[`${uid}/lastReactionTime`] = 0;
-      updates[`${uid}/isReady`] = false;
-    });
-    await update(playersRef, updates);
-    await update(gameRef, { status: 'waiting', currentRound: 0 });
-  };
-
   if (room.game?.status === 'results') {
     const sortedPlayers = (Object.values(room.players) as Player[]).sort((a, b) => a.score - b.score);
     return (
-      <div className="min-h-screen px-4 py-8 overflow-y-auto">
-        <div className="bg-indigo-900/80 backdrop-blur-xl rounded-[3rem] p-8 border-4 border-yellow-400 text-center shadow-2xl">
-          <h1 className="text-5xl font-jua text-yellow-300 mb-2">시상대 🏆</h1>
-          <p className="text-indigo-200 mb-8 font-bold">누가 가장 빨랐을까?</p>
-          <div className="space-y-4 mb-10">
+      <div className="min-h-screen px-6 py-12 flex flex-col items-center">
+        <div className="glass w-full max-w-sm rounded-[3rem] p-8 border-cyan-500/30 animate-slide-up shadow-2xl">
+          <header className="text-center mb-10">
+            <span className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.4em] mb-2 block">Mission Summary</span>
+            <h1 className="text-4xl font-bold text-white tracking-tighter">LEADERBOARD</h1>
+          </header>
+          <div className="space-y-3 mb-12">
             {sortedPlayers.map((p, idx) => (
-              <div key={p.uid} className={`flex items-center justify-between p-5 rounded-2xl border-2 ${idx === 0 ? 'bg-yellow-400/20 border-yellow-400' : 'bg-white/5 border-white/10'}`}>
-                <div className="flex items-center gap-3">
-                  <span className="font-jua text-xl">{idx === 0 ? '👑' : idx + 1}</span>
-                  <img src={p.photoURL} className="w-10 h-10 rounded-xl" />
-                  <span className="font-black text-sm">{p.name}</span>
+              <div key={p.uid} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${idx === 0 ? 'bg-cyan-500/10 border-cyan-500/50 scale-105' : 'bg-white/5 border-white/5'}`}>
+                <div className="flex items-center gap-4">
+                  <span className={`w-6 text-center font-bold text-xs ${idx === 0 ? 'text-cyan-400' : 'text-slate-600'}`}>0{idx + 1}</span>
+                  <img src={p.photoURL} className="w-8 h-8 rounded-lg" alt="" />
+                  <span className="font-bold text-sm text-white truncate max-w-[100px]">{p.name}</span>
                 </div>
-                <span className="font-jua text-xl text-white">{p.score}ms</span>
+                <span className={`font-mono text-xs font-bold ${idx === 0 ? 'text-cyan-400' : 'text-slate-400'}`}>{p.score}ms</span>
               </div>
             ))}
           </div>
           {isHost ? (
-            <button onClick={resetGame} className="w-full py-6 bg-pink-500 text-white font-jua text-3xl rounded-[2.5rem] shadow-lg active:scale-95">다시 하기!</button>
+            <button 
+              onClick={async () => {
+                const updates: any = {};
+                Object.keys(room.players).forEach(uid => { updates[`players/${uid}/score`] = 0; updates[`players/${uid}/lastReactionTime`] = 0; updates[`players/${uid}/isReady`] = false; });
+                updates['game'] = { status: 'waiting', currentRound: 0, totalRounds: 5 };
+                await update(ref(db, `rooms/${room.id}`), updates);
+              }} 
+              className="w-full py-5 bg-cyan-500 text-slate-950 font-bold rounded-2xl shadow-lg active:scale-95 transition-all"
+            >
+              Restart Session
+            </button>
           ) : (
-            <p className="text-indigo-300 font-bold animate-pulse">방장이 다시 시작하기를 기다려요...</p>
+            <div className="text-center py-4 text-slate-600 text-[10px] font-bold uppercase tracking-widest animate-pulse">Waiting for host...</div>
           )}
         </div>
       </div>
     );
   }
 
-  const bgColor = phase === GamePhase.CLICK_NOW ? 'bg-green-500' : phase === GamePhase.WAITING_FOR_GREEN ? 'bg-red-500' : 'bg-indigo-800';
+  const bgStyle = phase === GamePhase.CLICK_NOW ? 'bg-[#06b6d4]' : phase === GamePhase.WAITING_FOR_GREEN ? 'bg-[#f43f5e]' : 'bg-[#020617]';
+  const textStyle = phase === GamePhase.IDLE ? 'text-slate-700' : 'text-white';
 
   return (
-    <div className={`fixed inset-0 flex flex-col transition-all duration-300 ${shake ? 'animate-shake' : ''} ${invert ? 'invert' : ''}`}>
-      <div className="flex items-center justify-between px-6 py-4 bg-black/30 backdrop-blur-md border-b border-white/10">
-        <div className="font-jua text-yellow-400 text-2xl">라운드 {room.game?.currentRound}/{room.game?.totalRounds}</div>
-        <div className="flex -space-x-3">
-          {(Object.values(room.players) as Player[]).map(p => (
-            <img key={p.uid} src={p.photoURL} className="w-10 h-10 rounded-xl border-2 border-indigo-900" title={p.name} />
+    <div className={`fixed inset-0 flex flex-col transition-all duration-300 ${shake ? 'animate-shake' : ''} ${flash ? 'brightness-150' : ''} ${bgStyle}`}>
+      <header className="flex items-center justify-between px-8 py-6 bg-black/20 backdrop-blur-md">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Sequence</span>
+          <span className="text-lg font-bold text-white leading-none">{room.game?.currentRound} / {room.game?.totalRounds}</span>
+        </div>
+        <div className="flex -space-x-2">
+          {Object.values(room.players).map((p: any) => (
+            <div key={p.uid} className="w-8 h-8 rounded-lg border-2 border-black/20 overflow-hidden">
+              <img src={p.photoURL} alt="" />
+            </div>
           ))}
         </div>
-      </div>
+      </header>
 
       <div 
-        className={`flex-1 flex flex-col items-center justify-center p-6 game-tap-area ${bgColor} cursor-pointer`}
+        className="flex-1 flex flex-col items-center justify-center p-8 game-tap-area relative"
         onMouseDown={handleClick}
         onTouchStart={handleClick}
       >
-        <span className="text-5xl md:text-7xl font-jua text-white text-center drop-shadow-lg leading-tight pointer-events-none">
+        <span className={`text-4xl md:text-6xl font-bold tracking-tighter text-center leading-none ${textStyle} drop-shadow-2xl`}>
           {message}
         </span>
         {lastTime && (
-          <div className="mt-8 animate-pop pointer-events-none">
-            <span className="text-3xl font-black bg-white/20 px-8 py-3 rounded-full border border-white/30">
-               🚀 {lastTime}ms
+          <div className="absolute bottom-20 animate-pop">
+            <span className="text-xl font-mono font-bold bg-black/30 backdrop-blur px-6 py-2 rounded-full border border-white/10">
+               {lastTime}ms
             </span>
           </div>
         )}
       </div>
 
-      <div className="p-6 bg-indigo-950">
-        <div className="bg-white/5 p-5 rounded-[2rem] border border-white/10">
-           <h3 className="font-jua text-indigo-400 text-center mb-4 text-sm">실시간 기록</h3>
-           <div className="grid grid-cols-2 gap-3">
-             {(Object.values(room.players) as Player[]).map(p => (
-               <div key={p.uid} className="flex items-center gap-2 bg-black/20 p-2 rounded-xl">
-                 <img src={p.photoURL} className="w-6 h-6 rounded-lg" />
-                 <span className="text-[10px] font-bold truncate flex-1">{p.name}</span>
-                 <span className="text-[10px] font-black text-yellow-400">{p.lastReactionTime || '-'}ms</span>
-               </div>
-             ))}
-           </div>
+      <footer className="p-8 bg-black/40 backdrop-blur-xl">
+        <div className="max-w-md mx-auto">
+          <div className="grid grid-cols-2 gap-2 mb-6">
+            {(Object.values(room.players) as Player[]).map(p => (
+              <div key={p.uid} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                <img src={p.photoURL} className="w-5 h-5 rounded" alt="" />
+                <span className="text-[9px] font-bold text-slate-400 truncate flex-1">{p.name}</span>
+                <span className="text-[9px] font-mono font-bold text-cyan-400">{p.lastReactionTime || 0}ms</span>
+              </div>
+            ))}
+          </div>
+          {phase === GamePhase.FINISHED && isHost && (
+            <button 
+              onClick={async () => {
+                const gameRef = ref(db, `rooms/${room.id}/game`);
+                if (room.game.currentRound >= room.game.totalRounds) await update(gameRef, { status: 'results' });
+                else await update(gameRef, { currentRound: room.game.currentRound + 1 });
+              }}
+              className="w-full py-4 bg-white text-slate-950 font-bold rounded-xl shadow-lg active:scale-95 transition-all text-xs uppercase tracking-[0.2em]"
+            >
+              Next Sequence ▶
+            </button>
+          )}
         </div>
-        {phase === GamePhase.FINISHED && isHost && (
-          <button 
-            onClick={handleNextRound}
-            className="w-full mt-6 py-5 bg-yellow-400 text-indigo-900 font-jua text-2xl rounded-3xl shadow-lg active:scale-95 animate-bounce-subtle"
-          >
-            다음 라운드 진격! ▶️
-          </button>
-        )}
-      </div>
+      </footer>
     </div>
   );
 };

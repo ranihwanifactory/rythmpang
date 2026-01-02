@@ -25,7 +25,6 @@ const Lobby: React.FC<LobbyProps> = ({ user, onJoinRoom }) => {
       if (data) {
         const roomList = Object.entries(data)
           .map(([id, room]: [string, any]) => ({ ...room, id }))
-          // 1. 플레이어가 1명 이상 있고, 2. 방 이름이 있으며, 3. 호스트 정보가 있는 유효한 방만 표시
           .filter(r => r.players && Object.keys(r.players).length > 0 && r.roomName && r.hostId)
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setRooms(roomList);
@@ -36,182 +35,170 @@ const Lobby: React.FC<LobbyProps> = ({ user, onJoinRoom }) => {
     return () => unsubscribe();
   }, []);
 
-  const generateRoomCode = () => {
-    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    let code = '';
-    for (let i = 0; i < 4; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  };
-
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) return;
-    let code = generateRoomCode();
-    const existingRoom = await get(ref(db, `rooms/${code}`));
-    if (existingRoom.exists()) code = generateRoomCode();
-
+    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
     const roomRef = ref(db, `rooms/${code}`);
-    const roomData = {
+    await set(roomRef, {
       hostId: user.uid,
       roomName: newRoomName,
       createdAt: serverTimestamp(),
       players: {
         [user.uid]: {
           uid: user.uid,
-          name: user.displayName || user.email?.split('@')[0] || '승부사',
+          name: user.displayName || 'Guest',
           photoURL: user.photoURL || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.uid}`,
           score: 0,
           isReady: false
         }
       },
       game: { status: 'waiting', currentRound: 0, totalRounds: 5 }
-    };
-
-    await set(roomRef, roomData);
+    });
     setIsCreating(false);
     onJoinRoom(code);
   };
 
-  const handleJoinByCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = inputCode.toUpperCase().trim();
-    if (code.length < 1) return;
-    setJoinError('');
-    const roomSnap = await get(ref(db, `rooms/${code}`));
-    if (roomSnap.exists()) onJoinRoom(code);
-    else {
-      setJoinError('해당 번호의 방을 찾을 수 없어요! 🧐');
-      setTimeout(() => setJoinError(''), 2000);
-    }
-  };
-
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-6 pb-20">
-      <header className="flex flex-col gap-4 mb-8">
-        <div className="flex justify-between items-center bg-indigo-900/60 p-5 rounded-[2.5rem] border-2 border-indigo-400 shadow-[0_0_20px_rgba(129,140,248,0.3)] backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <img src={user.photoURL || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.uid}`} className="w-12 h-12 rounded-2xl border-2 border-yellow-300 shadow-md" alt="Avatar" />
-            <div>
-              <p className="text-white font-jua text-lg leading-tight">{user.displayName || '플레이어'}</p>
-              <button onClick={() => signOut(auth)} className="text-indigo-300 text-xs font-bold hover:text-white transition-colors">로그아웃</button>
-            </div>
+    <div className="max-w-xl mx-auto px-6 pt-10 pb-20">
+      {/* Header Profile */}
+      <header className="flex items-center justify-between mb-12 animate-slide-up">
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <img src={user.photoURL || ''} className="w-14 h-14 rounded-2xl border-2 border-white/10 group-hover:border-cyan-500/50 transition-all shadow-lg" alt="User" />
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#020617] rounded-full"></div>
           </div>
-          <button 
-            onClick={() => setShowGuide(true)}
-            className="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-5 py-2.5 rounded-2xl text-sm font-black shadow-lg hover:scale-105 active:scale-95 transition-all"
-          >
-            게임 방법❓
-          </button>
+          <div>
+            <h2 className="text-white font-bold text-lg leading-none mb-1">{user.displayName || 'Agent'}</h2>
+            <button onClick={() => signOut(auth)} className="text-slate-500 text-[10px] font-black uppercase tracking-widest hover:text-rose-400 transition-colors">Disconnect</button>
+          </div>
         </div>
         <button 
-          onClick={() => setIsCreating(true)}
-          className="w-full bg-gradient-to-b from-yellow-300 to-yellow-500 text-indigo-900 py-5 rounded-[2.5rem] font-black text-2xl clay-button shadow-[0_8px_0_rgb(180,130,0)]"
+          onClick={() => setShowGuide(true)}
+          className="p-3 glass rounded-xl hover:border-cyan-500/30 transition-all text-cyan-400"
+          title="Guide"
         >
-          방 만들기 ➕
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </button>
       </header>
 
-      {/* 방 번호로 입장 */}
-      <section className="mb-12 bg-indigo-900/30 p-8 rounded-[3rem] border-4 border-indigo-500/20 text-center">
-         <h2 className="text-lg font-jua text-indigo-300 mb-5 uppercase tracking-tighter">친구 방 번호로 바로 입장!</h2>
-         <form onSubmit={handleJoinByCode} className="flex gap-4 justify-center items-center">
-            <input 
-              type="text" 
-              value={inputCode}
-              onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-              maxLength={4}
-              placeholder="CODE"
-              className="w-36 text-center bg-black/40 border-4 border-indigo-400 rounded-3xl py-4 text-3xl font-black text-yellow-400 outline-none focus:border-yellow-400 transition-colors shadow-inner"
-            />
-            <button 
-              type="submit"
-              className="bg-indigo-500 hover:bg-indigo-400 text-white px-10 py-5 rounded-3xl font-jua text-2xl shadow-[0_6px_0_rgb(67,56,202)] active:translate-y-1 active:shadow-none transition-all"
-            >
-              입장! 🚀
-            </button>
-         </form>
-         {joinError && <p className="mt-4 text-red-400 font-bold animate-shake">{joinError}</p>}
-      </section>
-
-      {/* 게임 안내 모달 */}
-      {showGuide && (
-        <div className="fixed inset-0 bg-indigo-950/95 backdrop-blur-md z-[100] p-6 flex items-center justify-center">
-          <div className="bg-white rounded-[3rem] p-8 w-full max-w-sm animate-pop text-indigo-900 shadow-[0_0_50px_rgba(255,255,255,0.2)]">
-            <h2 className="text-4xl font-jua text-center mb-8">이렇게 놀아요! 🎮</h2>
-            <div className="space-y-6 mb-10 text-base leading-relaxed">
-              <div className="flex gap-4 items-center bg-red-50 p-4 rounded-2xl">
-                <span className="text-3xl">🛑</span>
-                <p className="font-bold">빨간색일 땐 기다려요!</p>
-              </div>
-              <div className="flex gap-4 items-center bg-green-50 p-4 rounded-2xl">
-                <span className="text-3xl">⚡</span>
-                <p className="font-bold text-green-700">초록색이 되면 광클!</p>
-              </div>
-              <div className="flex gap-4 items-center bg-yellow-50 p-4 rounded-2xl">
-                <span className="text-3xl">🏆</span>
-                <p className="font-bold text-orange-700">낮은 점수가 1등이에요!</p>
-              </div>
+      {/* Main Actions */}
+      <div className="grid grid-cols-1 gap-4 mb-12 animate-slide-up [animation-delay:0.1s]">
+        <button 
+          onClick={() => setIsCreating(true)}
+          className="group relative overflow-hidden bg-white/5 border border-white/10 hover:border-cyan-500/50 p-6 rounded-[2rem] text-left transition-all shadow-xl"
+        >
+          <div className="relative z-10 flex justify-between items-center">
+            <div>
+              <h3 className="text-white font-bold text-xl mb-1">새 세션 생성</h3>
+              <p className="text-slate-400 text-xs font-medium">친구들을 초대하여 대결을 시작하세요.</p>
             </div>
-            <button onClick={() => setShowGuide(false)} className="w-full bg-indigo-600 text-white py-5 rounded-3xl font-jua text-2xl shadow-xl active:scale-95">준비됐어요!</button>
+            <div className="w-12 h-12 glass rounded-2xl flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            </div>
           </div>
-        </div>
-      )}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 blur-[40px] rounded-full"></div>
+        </button>
 
-      {/* 방 목록 */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-4 px-2">
-           <h3 className="font-jua text-2xl text-white">대결 중인 방 🔥</h3>
-           <div className="h-1 flex-1 bg-white/10 rounded-full"></div>
-           <span className="bg-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-xs font-black">{rooms.length}개</span>
+        <div className="glass p-4 rounded-[2rem] flex gap-3">
+          <input 
+            type="text" 
+            value={inputCode}
+            onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+            placeholder="세션 코드 입력"
+            maxLength={4}
+            className="flex-1 bg-white/5 border border-white/5 px-6 py-4 rounded-2xl text-white outline-none focus:border-cyan-500/30 text-center font-bold tracking-[0.5em]"
+          />
+          <button 
+            onClick={() => inputCode && onJoinRoom(inputCode)}
+            className="bg-cyan-500 text-slate-950 px-8 py-4 rounded-2xl font-bold active:scale-95 transition-all"
+          >
+            접속
+          </button>
         </div>
-        
+      </div>
+
+      {/* Room List Section */}
+      <section className="animate-slide-up [animation-delay:0.2s]">
+        <div className="flex items-center justify-between px-2 mb-6">
+          <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Active Channels</h3>
+          <div className="h-px flex-1 bg-white/5 mx-4"></div>
+          <span className="text-cyan-400 text-[10px] font-bold">{rooms.length}</span>
+        </div>
+
         {rooms.length === 0 ? (
-          <div className="py-20 text-center bg-indigo-900/20 rounded-[3rem] border-4 border-dashed border-white/5">
-            <div className="text-6xl mb-6">🏝️</div>
-            <p className="text-indigo-300 font-jua text-xl">텅 비어있어요...<br/>방을 만들고 친구를 초대해보세요!</p>
+          <div className="py-20 text-center glass rounded-[2.5rem] border-dashed">
+            <p className="text-slate-500 text-sm font-medium">활성화된 채널이 없습니다.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-5">
+          <div className="space-y-4">
             {rooms.map((room) => (
               <div 
                 key={room.id}
                 onClick={() => onJoinRoom(room.id)}
-                className="bg-gradient-to-r from-indigo-800 to-indigo-900 p-6 rounded-[2.5rem] flex items-center justify-between border-4 border-indigo-400/30 hover:border-yellow-400 hover:scale-[1.02] transition-all shadow-xl cursor-pointer group"
+                className="group glass p-5 rounded-[1.8rem] flex items-center justify-between hover:bg-white/5 hover:border-cyan-500/30 transition-all cursor-pointer shadow-lg"
               >
-                <div className="flex flex-col gap-1">
-                  <h4 className="text-white font-jua text-2xl group-hover:text-yellow-300 transition-colors">{room.roomName}</h4>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-yellow-400 text-indigo-900 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">CODE: {room.id}</span>
-                    <span className="text-indigo-200 text-xs font-bold">👤 {Object.keys(room.players || {}).length}명 대기 중</span>
+                <div className="flex items-center gap-5">
+                  <div className="w-12 h-12 bg-cyan-500/10 rounded-2xl flex items-center justify-center text-cyan-400 font-jua text-lg">
+                    {room.id}
+                  </div>
+                  <div>
+                    <h4 className="text-white font-bold group-hover:text-cyan-400 transition-colors">{room.roomName}</h4>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Players: {Object.keys(room.players).length} / 4</p>
                   </div>
                 </div>
-                <div className="bg-indigo-400 text-white w-14 h-14 rounded-full flex items-center justify-center font-black shadow-lg group-hover:bg-yellow-400 group-hover:text-indigo-900 transition-all">
-                  입장
+                <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-slate-500 group-hover:text-cyan-400 group-hover:border-cyan-500/30 transition-all">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
+      {/* Modals & Creation UI (Styled similarly to AuthView) */}
       {isCreating && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[150] flex items-center justify-center p-6">
-          <div className="bg-white rounded-[3.5rem] p-10 w-full max-w-sm animate-pop shadow-2xl border-t-[12px] border-indigo-500">
-            <h2 className="text-3xl font-jua text-indigo-900 text-center mb-8 leading-tight">우리 방의 이름은? 🏷️</h2>
+        <div className="fixed inset-0 bg-[#020617]/90 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+          <div className="glass p-8 w-full max-w-sm rounded-[2.5rem] animate-pop">
+            <h2 className="text-xl font-bold text-white mb-6 text-center">채널 이름 설정</h2>
             <input 
               type="text" 
               value={newRoomName}
               onChange={(e) => setNewRoomName(e.target.value)}
-              placeholder="예: 초고수만 오삼"
+              placeholder="예: 최강자 대결"
               maxLength={15}
-              className="w-full bg-indigo-50 border-4 border-indigo-100 px-6 py-5 rounded-3xl text-indigo-900 text-center text-xl font-bold mb-8 outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-white/5 border border-white/10 px-6 py-4 rounded-xl text-white text-center font-medium mb-6 focus:border-cyan-500/50 outline-none"
               autoFocus
             />
-            <div className="flex gap-4">
-              <button onClick={() => setIsCreating(false)} className="flex-1 py-5 text-gray-400 font-bold text-lg">취소</button>
-              <button onClick={handleCreateRoom} className="flex-1 py-5 bg-indigo-600 text-white rounded-3xl font-black text-xl shadow-lg active:scale-95">방 만들기!</button>
+            <div className="flex gap-3">
+              <button onClick={() => setIsCreating(false)} className="flex-1 py-4 text-slate-500 font-bold text-sm">Cancel</button>
+              <button onClick={handleCreateRoom} className="flex-1 py-4 bg-cyan-500 text-slate-950 rounded-xl font-bold shadow-lg">Create</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showGuide && (
+        <div className="fixed inset-0 bg-[#020617]/95 backdrop-blur-md z-[100] flex items-center justify-center p-8">
+          <div className="glass p-8 w-full max-w-sm rounded-[3rem] animate-pop relative">
+            <button onClick={() => setShowGuide(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <h2 className="text-2xl font-bold text-white mb-8 text-center neon-glow-cyan">How to Play</h2>
+            <div className="space-y-6 text-slate-300 text-sm">
+              <div className="flex gap-5 items-center bg-white/5 p-4 rounded-2xl">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center font-bold text-rose-400">01</div>
+                <p>배경이 <span className="text-rose-400 font-bold italic underline">RED</span>일 때는 절대 누르지 말고 대기하세요.</p>
+              </div>
+              <div className="flex gap-5 items-center bg-white/5 p-4 rounded-2xl">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center font-bold text-emerald-400">02</div>
+                <p>배경이 <span className="text-emerald-400 font-bold italic underline">GREEN</span>으로 바뀌면 즉시 화면을 터치하세요.</p>
+              </div>
+              <div className="flex gap-5 items-center bg-white/5 p-4 rounded-2xl">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center font-bold text-cyan-400">03</div>
+                <p>반응 속도(ms)가 <span className="text-cyan-400 font-bold">작을수록</span> 순위가 높아집니다.</p>
+              </div>
+            </div>
+            <button onClick={() => setShowGuide(false)} className="w-full mt-8 bg-white/5 border border-white/10 hover:border-white/20 py-4 rounded-2xl font-bold text-white transition-all">Understood</button>
           </div>
         </div>
       )}

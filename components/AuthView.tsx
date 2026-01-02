@@ -13,7 +13,7 @@ const AuthView: React.FC = () => {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
-      setError("구글 로그인 실패: " + err.message);
+      setError("Login failed: " + err.message);
     }
   };
 
@@ -27,74 +27,78 @@ const AuthView: React.FC = () => {
         await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (err: any) {
-      setError(isSignUp ? "회원가입 실패!" : "로그인 실패! 이메일과 비번을 확인해줘.");
+      setError(isSignUp ? "Registration failed." : "Authentication failed.");
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#1a1a2e] p-4 relative overflow-hidden">
-      {/* Background Orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-purple-600/30 rounded-full blur-[100px]"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-80 h-80 bg-blue-600/30 rounded-full blur-[100px]"></div>
-
-      <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2.5rem] shadow-2xl p-10 w-full max-w-md z-10 animate-pop">
+    <div className="flex items-center justify-center min-h-screen p-6">
+      <div className="glass rounded-[2rem] p-8 md:p-12 w-full max-w-md animate-slide-up shadow-2xl">
         <div className="text-center mb-10">
-          <div className="inline-block p-4 bg-yellow-400 rounded-3xl shadow-lg mb-4 rotate-[-3deg] animate-bounce-subtle">
-             <h1 className="text-4xl font-jua text-indigo-900 leading-none">⚡ 번개 순발력 ⚡</h1>
+          <div className="inline-block px-4 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full mb-4">
+             <span className="text-[10px] font-bold text-cyan-400 tracking-[0.3em] uppercase">Reflex Engine v3.0</span>
           </div>
-          <p className="text-blue-200 font-bold">친구들과 펼치는 실시간 반응속도 대결!</p>
+          <h1 className="text-4xl font-bold tracking-tight text-white mb-2">LIGHTNING</h1>
+          <p className="text-slate-400 text-sm font-medium">초정밀 반응속도 경쟁 시스템</p>
         </div>
 
-        <form onSubmit={handleEmailAuth} className="space-y-5">
-          <input 
-            type="email" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-white/5 border border-white/20 px-6 py-4 rounded-2xl text-white outline-none focus:ring-2 focus:ring-yellow-400 transition-all placeholder:text-gray-500"
-            placeholder="이메일 주소"
-            required
-          />
-          <input 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-white/5 border border-white/20 px-6 py-4 rounded-2xl text-white outline-none focus:ring-2 focus:ring-yellow-400 transition-all placeholder:text-gray-500"
-            placeholder="비밀번호"
-            required
-          />
+        <form onSubmit={handleEmailAuth} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase ml-2 tracking-wider">Account ID</label>
+            <input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 px-5 py-4 rounded-xl text-white outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-600 text-sm"
+              placeholder="name@example.com"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase ml-2 tracking-wider">Access Key</label>
+            <input 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 px-5 py-4 rounded-xl text-white outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-600 text-sm"
+              placeholder="••••••••"
+              required
+            />
+          </div>
 
           <button 
             type="submit"
-            className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-indigo-900 font-black text-xl py-4 rounded-2xl clay-button shadow-[0_5px_0_rgb(180,120,0)]"
+            className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] active:scale-[0.98]"
           >
-            {isSignUp ? '가입하고 시작하기!' : '지금 바로 입장!'}
+            {isSignUp ? '시스템 등록' : '데이터 동기화'}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <button 
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-blue-300 text-sm font-bold hover:text-white transition-colors"
-          >
-            {isSignUp ? '이미 계정이 있나요? 로그인' : '처음인가요? 회원가입 하기'}
-          </button>
-        </div>
-
-        <div className="flex items-center my-8">
-          <div className="flex-1 h-px bg-white/10"></div>
-          <span className="px-4 text-gray-500 text-xs font-bold uppercase">간편하게 입장</span>
-          <div className="flex-1 h-px bg-white/10"></div>
+        <div className="mt-8 relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-white/5"></div>
+          </div>
+          <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-bold text-slate-500">
+            <span className="bg-[#0f172a] px-3">or connect via</span>
+          </div>
         </div>
 
         <button 
           onClick={handleGoogleLogin}
-          className="w-full bg-white text-gray-800 flex items-center justify-center gap-3 py-4 rounded-2xl font-black hover:bg-gray-100 transition-all shadow-md active:scale-95"
+          className="mt-6 w-full glass hover:bg-white/5 flex items-center justify-center gap-3 py-4 rounded-xl text-sm font-semibold text-slate-300 transition-all active:scale-[0.98]"
         >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6" alt="Google" />
-          구글 계정으로 로그인
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+          Google Authentication
         </button>
 
-        {error && <p className="mt-4 text-red-400 text-sm font-bold text-center animate-shake">{error}</p>}
+        <button 
+          onClick={() => setIsSignUp(!isSignUp)}
+          className="w-full mt-6 text-slate-500 text-xs font-medium hover:text-cyan-400 transition-colors"
+        >
+          {isSignUp ? '이미 계정이 있나요? 로그인' : '시스템에 처음 접속하시나요? 계정 생성'}
+        </button>
+
+        {error && <p className="mt-6 text-rose-500 text-xs font-bold text-center animate-shake">{error}</p>}
       </div>
     </div>
   );
